@@ -11,6 +11,7 @@
 import pyrealsense2 as rs
 import serial
 import time
+import math
 import csv
 ser = serial.Serial('/dev/ttyACM0', 9600)
 
@@ -20,6 +21,9 @@ waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up t
 x_offset = 0
 y_offset = 0
 cruise_speed = 100
+old_x = 0
+old_y = 0
+steering_dir = 1  # +/- 1 for direction of robot motors
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 
@@ -74,6 +78,8 @@ def dir(heading, desired_angle):
 
 
 def navigate(x,y,heading):
+    global old_x
+    global old_y
     delta_x = waypoint[waypoint_num][0] - x  # calculate angle to target
     delta_y = waypoint[waypoint_num][1] - y
     range = math.sqrt(delta_y**2 + delta_x**2)
@@ -84,6 +90,7 @@ def navigate(x,y,heading):
     old_x = x
     old_y = y
     direction = dir(heading, desired_angle)
+    print ("steer angle", desired_angle)
     drive (desired_angle * direction)
 
 try:
