@@ -11,12 +11,19 @@
 import pyrealsense2 as rs
 import serial
 import time
+import math
+import csv
 ser = serial.Serial('/dev/ttyACM0', 9600)
 
 waypoint_file = 'waypoints_office.csv'
 waypoint_num = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
-
+x_offset = 0
+y_offset = 0
+cruise_speed = 100
+old_x = 0
+old_y = 0
+steering_dir = 1  # +/- 1 for direction of robot motors
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 
@@ -37,7 +44,9 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
     print('Loaded', line_count, 'waypoints')
     waypoint_total = line_count
 
-def drive(left, right):
+def drive(angle):
+    left = cruise_speed - angle
+    right = cruise_speed + angle
     left = str(left)
     right = str(right)
     ser.write(left)
@@ -69,6 +78,8 @@ def dir(heading, desired_angle):
 
 
 def navigate(x,y,heading):
+    global old_x
+    global old_y
     delta_x = waypoint[waypoint_num][0] - x  # calculate angle to target
     delta_y = waypoint[waypoint_num][1] - y
     range = math.sqrt(delta_y**2 + delta_x**2)
@@ -79,6 +90,8 @@ def navigate(x,y,heading):
     old_x = x
     old_y = y
     direction = dir(heading, desired_angle)
+    print ("steer angle", desired_angle)
+    drive (desired_angle * direction)
 
 try:
     while True:
@@ -90,11 +103,13 @@ try:
         if pose:
             # Print some of the pose data to the terminal
             data = pose.get_pose_data()
-            print("Frame #{}".format(pose.frame_number))
-            print("Position: {}".format(data.translation))
-            print("Velocity: {}".format(data.velocity))
-            print("Acceleration: {}\n".format(data.acceleration))
-            drive(100,100)
+            x = data.translation.x
+            print("X", x)
+            y = data.translation.z # don't ask me why, but in "VR space", y is z
+            print("Y", y)
+            heading = data.rotation.y # don't ask me why, but in "Quaternian space", y is z
+            print ("heading", heading)
+            navigate(x,y,heading)
 
 except KeyboardInterrupt:
     left = str(0)
