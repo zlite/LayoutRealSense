@@ -20,10 +20,12 @@ waypoint_num = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
 x_offset = 0
 y_offset = 0
-cruise_speed = 100
+x = 0
+y = 0
+cruise_speed = 40
 old_x = 0
 old_y = 0
-steering_dir = 1  # +/- 1 for direction of robot motors
+steering_dir = -1  # +/- 1 for direction of robot motors
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 
@@ -45,10 +47,11 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
     waypoint_total = line_count
 
 def drive(angle):
-    left = cruise_speed - angle
-    right = cruise_speed + angle
+    left = cruise_speed - angle/5
+    right = cruise_speed + angle/5
     left = str(left)
     right = str(right)
+    print ("Left", left,"Right", right)
     ser.write(left)
     ser.write("L")
     ser.write(right)
@@ -78,20 +81,20 @@ def dir(heading, desired_angle):
 
 
 def navigate(x,y,heading):
-    global old_x
-    global old_y
+    global waypoint_num
     delta_x = waypoint[waypoint_num][0] - x  # calculate angle to target
     delta_y = waypoint[waypoint_num][1] - y
     range = math.sqrt(delta_y**2 + delta_x**2)
     desired_angle = math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
-    delta_x = x - old_x
-    delta_y = y - old_y
-    heading2 = math.degrees(math.atan2(delta_y,delta_x))  #  now get angle from position since last measurement
-    old_x = x
-    old_y = y
     direction = dir(heading, desired_angle)
-    print ("steer angle", desired_angle)
-    drive (desired_angle * direction)
+    delta_angle = direction * (desired_angle - heading)
+    print ("steer angle", round(delta_angle,3))
+    drive (delta_angle)
+    print ("Range", round(range,3))
+    if range < 20:
+        waypoint_num = waypoint_num + 1
+        if waypoint_num > 3:
+            waypoint_num = 0   # start over from beginning of waypoints
 
 try:
     while True:
@@ -104,11 +107,11 @@ try:
             # Print some of the pose data to the terminal
             data = pose.get_pose_data()
             x = data.translation.x
-            print("X", x)
             y = data.translation.z # don't ask me why, but in "VR space", y is z
-            print("Y", y)
-            heading = data.rotation.y # don't ask me why, but in "Quaternian space", y is z
-            print ("heading", heading)
+            print("Current X", round(x,2),"Y", round(y,2))
+            print("Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+            heading = 180 * data.rotation.y # don't ask me why, but in "Quaternian space", y is z
+            print ("heading", round(heading,2))
             navigate(x,y,heading)
 
 except KeyboardInterrupt:
