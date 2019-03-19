@@ -25,7 +25,7 @@ y = 0
 cruise_speed = 40
 old_x = 0
 old_y = 0
-steering_dir = -1  # +/- 1 for direction of robot motors
+steering_dir = 1  # +/- 1 for direction of robot motors
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 
@@ -79,6 +79,16 @@ def dir(heading, desired_angle):
     direction = steering_dir * direction # reverse if needed for robot
     return direction
 
+def get_heading():
+    qw = data.rotation.w # Realsense IMU data quaternians
+    qx = data.rotation.x
+    qy = data.rotation.y
+    qz = data.rotation.z
+    heading = math.atan2(2.0 * (qx * qy + qw * qz), -1.0 + 2.0 *(qw * qw + qx * qx - qy * qy - qz * qz))
+#    heading = math.atan2(2.0 * (QZ * QW + QX * QY), 2.0 * (QW * QW + QX * QX))
+    heading  *= 180.0 / math.pi
+    if heading < 0: heading += 360.0  # Ensure yaw stays between 0 and 360
+    return heading
 
 def navigate(x,y,heading):
     global waypoint_num
@@ -110,12 +120,12 @@ try:
             y = data.translation.z # don't ask me why, but in "VR space", y is z
             print("Current X", round(x,2),"Y", round(y,2))
             print("Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
-            heading = 180 * data.rotation.y # don't ask me why, but in "Quaternian space", y is z
+            heading = get_heading()
             print ("heading", round(heading,2))
             navigate(x,y,heading)
 
 except KeyboardInterrupt:
-    left = str(0)
+    left = str(0)  # set motors to zero
     right = str(0)
     ser.write(left)
     ser.write("L")
