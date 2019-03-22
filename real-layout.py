@@ -82,11 +82,21 @@ def dir(heading, desired_angle):
 def get_heading():
     qw = data.rotation.w # Realsense IMU data quaternians
     qx = data.rotation.x
-    qy = data.rotation.y
-    qz = data.rotation.z
-    heading = math.atan2(2.0 * (qx * qy + qw * qz), -1.0 + 2.0 *(qw * qw + qx * qx - qy * qy - qz * qz))
+    qy = -1 * data.rotation.y
+    qz = -1 * data.rotation.z
+    yaw = math.atan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
+    pitch = math.asin(-2.0*(qx*qz - qw*qy))
+    roll = math.atan2(2.0*(qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz)
+    yaw *= 180.0 / math.pi  # convert to degrees
+    pitch *= 180.0 / math.pi
+    roll *= 180.0 / math.pi
+    if yaw < 0: yaw += 360.0  # Ensure yaw stays between 0 and 360
+    if pitch < 0: pitch += 360.0  # Ensure yaw stays between 0 and 360
+    if roll < 0: roll += 360.0  # Ensure yaw stays between 0 and 360
+    print ("Yaw", round(yaw), "Pitch", round(pitch), "Roll", round(roll))
 #    heading = math.atan2(2.0 * (QZ * QW + QX * QY), 2.0 * (QW * QW + QX * QX))
-    heading  *= 180.0 / math.pi
+    heading = pitch
+    print ("Heading", heading)
     if heading < 0: heading += 360.0  # Ensure yaw stays between 0 and 360
     return heading
 
@@ -110,19 +120,20 @@ try:
     while True:
         # Wait for the next set of frames from the camera
         frames = pipe.wait_for_frames()
-
         # Fetch pose frame
         pose = frames.get_pose_frame()
         if pose:
             # Print some of the pose data to the terminal
             data = pose.get_pose_data()
+#            yaw = pose.QueryYaw()
             x = data.translation.x
             y = data.translation.z # don't ask me why, but in "VR space", y is z
             print("Current X", round(x,2),"Y", round(y,2))
             print("Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
             heading = get_heading()
-            print ("heading", round(heading,2))
-            navigate(x,y,heading)
+            time.sleep(0.1) # don't flood the print buffer
+#            print ("heading", round(heading,2))
+#            navigate(x,y,heading)
 
 except KeyboardInterrupt:
     left = str(0)  # set motors to zero
