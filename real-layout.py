@@ -119,10 +119,9 @@ def navigate(x,y,heading):
     desired_angle = math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
     direction = dir(heading, desired_angle)
     delta_angle = direction * (desired_angle - heading)
-    print ("steer angle", round(delta_angle,3))
+    print ("Waypoint Num: ", waypoint_num, "Steer angle", round(delta_angle,3), "Range", round(range,3))
     drive (delta_angle)
-    print ("Range", round(range,3))
-    if range < 20:
+    if range < 0.20:
         waypoint_num = waypoint_num + 1
         if waypoint_num > 3:
             waypoint_num = 0   # start over from beginning of waypoints
@@ -136,7 +135,6 @@ try:
         if pose:
             # Print some of the pose data to the terminal
             data = pose.get_pose_data()
-#            yaw = pose.QueryYaw()
             x = data.translation.x
             y = data.translation.z # don't ask me why, but in "VR space", y is z
             print("Current X", round(x,2),"Y", round(y,2))
@@ -144,7 +142,7 @@ try:
             heading = get_heading()
             time.sleep(0.1) # don't flood the print buffer
 #            print ("heading", round(heading,2))
-#            navigate(x,y,heading)
+            navigate(x,y,heading)
 
 except KeyboardInterrupt:
     left = str(0)  # set motors to zero
