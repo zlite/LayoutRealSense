@@ -82,21 +82,20 @@ def dir(heading, desired_angle):
 def get_heading():
     qw = data.rotation.w # Realsense IMU data quaternians
     qx = data.rotation.x
-    qy = -1 * data.rotation.y
-    qz = -1 * data.rotation.z
-    yaw = math.atan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
-    pitch = math.asin(-2.0*(qx*qz - qw*qy))
-    roll = math.atan2(2.0*(qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz)
+    qz = data.rotation.y  # z and y are swapped in the weird VR orientation
+    qy = data.rotation.z  # ditto
+    pitch = math.atan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
+    roll = math.asin(-2.0*(qx*qz - qw*qy))
+    yaw = math.atan2(2.0*(qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz)
     yaw *= 180.0 / math.pi  # convert to degrees
     pitch *= 180.0 / math.pi
     roll *= 180.0 / math.pi
     if yaw < 0: yaw += 360.0  # Ensure yaw stays between 0 and 360
     if pitch < 0: pitch += 360.0  # Ensure yaw stays between 0 and 360
     if roll < 0: roll += 360.0  # Ensure yaw stays between 0 and 360
-    print ("Yaw", round(yaw), "Pitch", round(pitch), "Roll", round(roll))
-#    heading = math.atan2(2.0 * (QZ * QW + QX * QY), 2.0 * (QW * QW + QX * QX))
-    heading = pitch
-    print ("Heading", heading)
+#    print ("Yaw", round(yaw), "Pitch", round(pitch), "Roll", round(roll))
+    heading = 360 - yaw
+    print ("Current Heading", round(heading))
     if heading < 0: heading += 360.0  # Ensure yaw stays between 0 and 360
     return heading
 
@@ -108,10 +107,9 @@ def navigate(x,y,heading):
     desired_angle = math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
     direction = dir(heading, desired_angle)
     delta_angle = direction * (desired_angle - heading)
-    print ("steer angle", round(delta_angle,3))
+    print ("Waypoint Num: ", waypoint_num, "Steer angle", round(delta_angle,3), "Range", round(range,3))
     drive (delta_angle)
-    print ("Range", round(range,3))
-    if range < 20:
+    if range < 0.20:
         waypoint_num = waypoint_num + 1
         if waypoint_num > 3:
             waypoint_num = 0   # start over from beginning of waypoints
@@ -125,7 +123,6 @@ try:
         if pose:
             # Print some of the pose data to the terminal
             data = pose.get_pose_data()
-#            yaw = pose.QueryYaw()
             x = data.translation.x
             y = data.translation.z # don't ask me why, but in "VR space", y is z
             print("Current X", round(x,2),"Y", round(y,2))
@@ -133,7 +130,7 @@ try:
             heading = get_heading()
             time.sleep(0.1) # don't flood the print buffer
 #            print ("heading", round(heading,2))
-#            navigate(x,y,heading)
+            navigate(x,y,heading)
 
 except KeyboardInterrupt:
     left = str(0)  # set motors to zero
