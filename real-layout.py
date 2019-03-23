@@ -12,7 +12,9 @@ import pyrealsense2 as rs
 import serial
 import time
 import math
+import transformations as tf
 import csv
+import numpy as np
 ser = serial.Serial('/dev/ttyACM0', 9600)
 
 waypoint_file = 'waypoints_office.csv'
@@ -28,6 +30,8 @@ old_y = 0
 steering_dir = 1  # +/- 1 for direction of robot motors
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
+H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
+H_T265body_aeroBody = np.linalg.inv(H_aeroRef_T265Ref)
 
 # Build config object and request pose data
 cfg = rs.config()
@@ -80,24 +84,31 @@ def dir(heading, desired_angle):
     return direction
 
 def get_heading():
-    qw = data.rotation.w # Realsense IMU data quaternians
-    qx = data.rotation.x
-    qy = -1 * data.rotation.y
-    qz = -1 * data.rotation.z
-    yaw = math.atan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
-    pitch = math.asin(-2.0*(qx*qz - qw*qy))
-    roll = math.atan2(2.0*(qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz)
-    yaw *= 180.0 / math.pi  # convert to degrees
-    pitch *= 180.0 / math.pi
-    roll *= 180.0 / math.pi
-    if yaw < 0: yaw += 360.0  # Ensure yaw stays between 0 and 360
-    if pitch < 0: pitch += 360.0  # Ensure yaw stays between 0 and 360
-    if roll < 0: roll += 360.0  # Ensure yaw stays between 0 and 360
-    print ("Yaw", round(yaw), "Pitch", round(pitch), "Roll", round(roll))
-#    heading = math.atan2(2.0 * (QZ * QW + QX * QY), 2.0 * (QW * QW + QX * QX))
-    heading = pitch
-    print ("Heading", heading)
-    if heading < 0: heading += 360.0  # Ensure yaw stays between 0 and 360
+    H_T265Ref_T265body = tf.quaternion_matrix([data.rotation.w, data.rotation.x,data.rotation.y,data.rotation.z]) # in transformations, Quaternions w+ix+jy+kz are represented as [w, x, y, z]!
+    # transform to aeronautic coordinates (body AND reference frame!)
+    H_aeroRef_aeroBody = H_aeroRef_T265Ref.dot( H_T265Ref_T265body.dot( H_T265body_aeroBody ))
+    rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
+    heading = rpy_rad[2]*180/math.pi
+    if heading < 0: heading = 360+heading
+    print ("Heading", round(heading))
+#     qw = data.rotation.w # Realsense IMU data quaternians
+#     qx = data.rotation.x
+#     qy = -1 * data.rotation.y
+#     qz = -1 * data.rotation.z
+#     yaw = math.atan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
+#     pitch = math.asin(-2.0*(qx*qz - qw*qy))
+#     roll = math.atan2(2.0*(qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz)
+#     yaw *= 180.0 / math.pi  # convert to degrees
+#     pitch *= 180.0 / math.pi
+#     roll *= 180.0 / math.pi
+#     if yaw < 0: yaw += 360.0  # Ensure yaw stays between 0 and 360
+#     if pitch < 0: pitch += 360.0  # Ensure yaw stays between 0 and 360
+#     if roll < 0: roll += 360.0  # Ensure yaw stays between 0 and 360
+#     print ("Yaw", round(yaw), "Pitch", round(pitch), "Roll", round(roll))
+# #    heading = math.atan2(2.0 * (QZ * QW + QX * QY), 2.0 * (QW * QW + QX * QX))
+#     heading = pitch
+#     print ("Heading", heading)
+#     if heading < 0: heading += 360.0  # Ensure yaw stays between 0 and 360
     return heading
 
 def navigate(x,y,heading):
