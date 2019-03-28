@@ -13,11 +13,10 @@ try:
             right = i - 20
             left = str(100)
             right = str(100)
-            ser.write("L")
             ser.write(left)
+            ser.write("L")
+	        ser.write(right)
             ser.write("R")
-	    ser.write(right)
-            ser.write("D")
             time.sleep(1)
             i = i + 10
         else:
@@ -30,5 +29,3 @@ except KeyboardInterrupt:
         ser.write("R")
         ser.write(right)
         ser.write("D")
-
-    
