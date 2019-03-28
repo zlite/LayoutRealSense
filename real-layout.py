@@ -15,8 +15,7 @@ import math
 import transformations as tf
 import csv
 import numpy as np
-ser = serial.Serial('/dev/ttyACM0', 9600)
-
+ser = serial.Serial('/dev/ttyACM0', 9600, write_timeout=0)
 waypoint_file = 'waypoints_office.csv'
 waypoint_num = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
@@ -51,11 +50,11 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
     waypoint_total = line_count
 
 def drive(angle):
-    left = cruise_speed - angle/5
-    right = cruise_speed + angle/5
+    left = cruise_speed + angle/5
+    right = cruise_speed - angle/5
+    print ("Left", round(left),"Right", round(right))
     left = str(left)
     right = str(right)
-    print ("Left", left,"Right", right)
     ser.write(left)
     ser.write("L")
     ser.write(right)
@@ -90,7 +89,7 @@ def get_heading():
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
     heading = rpy_rad[2]*180/math.pi
     if heading < 0: heading = 360+heading
-    print ("Heading", round(heading))
+#    print ("Heading", round(heading))
 #     qw = data.rotation.w # Realsense IMU data quaternians
 #     qx = data.rotation.x
 #     qy = -1 * data.rotation.y
@@ -117,11 +116,12 @@ def navigate(x,y,heading):
     delta_y = waypoint[waypoint_num][1] - y
     range = math.sqrt(delta_y**2 + delta_x**2)
     desired_angle = math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
-    direction = dir(heading, desired_angle)
-    delta_angle = direction * (desired_angle - heading)
-    print ("Waypoint Num: ", waypoint_num, "Steer angle", round(delta_angle,3), "Range", round(range,3))
+#    direction = dir(heading, desired_angle)
+    delta_angle = desired_angle - heading
+    print ("Current heading", round(heading), "Waypoint angle", round(desired_angle), "Steer angle", round(delta_angle))
     drive (delta_angle)
-    if range < 0.20:
+    print ("Range", round(range,3))
+    if range < 0.1:
         waypoint_num = waypoint_num + 1
         if waypoint_num > 3:
             waypoint_num = 0   # start over from beginning of waypoints
@@ -135,12 +135,13 @@ try:
         if pose:
             # Print some of the pose data to the terminal
             data = pose.get_pose_data()
+#            yaw = pose.QueryYaw()
             x = data.translation.x
             y = data.translation.z # don't ask me why, but in "VR space", y is z
             print("Current X", round(x,2),"Y", round(y,2))
-            print("Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+            print("Waypoint #", waypoint_num, " Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
             heading = get_heading()
-            time.sleep(0.1) # don't flood the print buffer
+            time.sleep(0.5) # don't flood the print buffer
 #            print ("heading", round(heading,2))
             navigate(x,y,heading)
 
