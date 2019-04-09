@@ -50,8 +50,8 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
     waypoint_total = line_count
 
 def drive(angle):
-    left = cruise_speed + angle/5
-    right = cruise_speed - angle/5
+    left = cruise_speed + angle/10
+    right = cruise_speed - angle/10
     print ("Left", round(left),"Right", round(right))
     left = str(left)
     right = str(right)
@@ -141,7 +141,7 @@ try:
             print("Current X", round(x,2),"Y", round(y,2))
             print("Waypoint #", waypoint_num, " Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
             heading = get_heading()
-            time.sleep(0.5) # don't flood the print buffer
+            time.sleep(0.2) # don't flood the print buffer
 #            print ("heading", round(heading,2))
             navigate(x,y,heading)
 
