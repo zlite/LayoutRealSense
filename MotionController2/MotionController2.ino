@@ -22,7 +22,7 @@ L293_twoWire motorLeft(LeftMotorPin, LeftDirectionPin);
 L293_twoWire motorRight(RightMotorPin, RightDirectionPin);
 
 // MEASUREMENTS
-// The units for all measurements must be consistent. 
+// The units for all measurements must be consistent.
 // You can use any length unit as desired.
 #define RADIUS 25 // wheel radius in mm
 #define LENGTH 200 // wheel base length in mm
@@ -173,7 +173,7 @@ void on_drive()
   }
 }
 
-void rotate(int angle) { 
+void rotate(int angle) {
   angle = angle/1000.0; // convert received int to double angular velocity
 }
 
@@ -237,7 +237,7 @@ void setMotorSpeeds(int speedLeft, int speedRight)
 
 void test() {
     // This mode just drives a 1m-per-side box to show calibration and help with tuning
-  
+
     // Cartesian coordinate of latest location estimate.
     // Length unit correspond to the one specified under MEASUREMENTS.
     double x = deadReckoner.getX();
@@ -261,7 +261,7 @@ void test() {
     else {
       setMotorSpeeds(0,0);
       }
-  
+
 //    Serial.print("x: "); Serial.print(x);
 //    Serial.print("\ty: "); Serial.print(y);
 //    Serial.print("\twl: "); Serial.print(wl);
@@ -278,12 +278,12 @@ void loop() {
 //  Serial.print("left, right:");
 //  Serial.print(leftTicks);
 //  Serial.print(" ");
-//  Serial.println(rightTicks);  
+//  Serial.println(rightTicks);
   if (millis() - prevPositionComputeTime > POSITION_COMPUTE_INTERVAL) {
     // Computes the new angular velocities and uses that to compute the new position.
     // The accuracy of the position estimate will increase with smaller time interval until a certain point.
     deadReckoner.computePosition();
-    prevPositionComputeTime = millis();  
+    prevPositionComputeTime = millis();
     if (testmode) {
       test();
     }
