@@ -7,6 +7,7 @@
 
 
 bool testmode = true;  // Test mode for debugging
+bool testdone = false; 
 int testspeed = 100;
 int testangle = 0;
 
@@ -22,16 +23,17 @@ L293_twoWire motorLeft(LeftMotorPin, LeftDirectionPin);
 L293_twoWire motorRight(RightMotorPin, RightDirectionPin);
 
 // MEASUREMENTS
-// The units for all measurements must be consistent.
+// The units for all measurements must be consistent. 
 // You can use any length unit as desired.
 #define RADIUS 25 // wheel radius in mm
 #define LENGTH 200 // wheel base length in mm
 #define TICKS_PER_REV 870
 #define LeftMaxRPM 40
 #define RightMaxRPM 40
+#define DEADZONE 5 // number of degrees off from target that qualify as a hit
 
 // TIME INTERVALS
-#define POSITION_COMPUTE_INTERVAL 50 // milliseconds
+#define POSITION_COMPUTE_INTERVAL 20 // milliseconds
 #define SEND_INTERVAL 100 // milliseconds
 
 // Define motor PID gains
@@ -53,20 +55,20 @@ const int rightTrim = 0.99;
 int lastSpeedCmdLeft = 0;
 int lastSpeedCmdRight = 0;
 
+const float deadZone = (DEADZONE * 2 * PI)/360; // convert to radians
 // Define maximum speed command change per time step
 const int accelMax = 10;
 
 
 
 // Number of left and right tick counts on the encoder.
-volatile int leftTicks, rightTicks;
+volatile unsigned long leftTicks, rightTicks;
 
 // Previous times for computing elapsed time.
-unsigned long prevPositionComputeTime = 0, prevSendTime = 0;
+unsigned long prevPositionComputeTime = millis(), prevSendTime = millis();
 
 // Previous x and y coordinate.
 double prevX = 0, prevY = 0;
-
 
 DeadReckoner deadReckoner(&leftTicks, &rightTicks, TICKS_PER_REV, RADIUS, LENGTH);
 
@@ -86,6 +88,8 @@ void setup() {
   Serial.begin(38400);
   Serial.println("Starting");
   attach_callbacks();
+  deadReckoner.reset();
+  deadReckoner.setTheta(0); 
 }
 
 void motors(int left, int right) {
@@ -173,7 +177,13 @@ void on_drive()
   }
 }
 
-void rotate(int angle) {
+void rotate(int angle) { 
+    double currentAngle = deadReckoner.getTheta();
+    double targetAngle = (currentAngle + angle)/(2 * PI);
+    while ((currentAngle < (targetAngle - deadZone)) || (currentAngle > (targetAngle + deadZone))) {
+      currentAngle = deadReckoner.getTheta();
+    }
+
   angle = angle/1000.0; // convert received int to double angular velocity
 }
 
@@ -237,7 +247,6 @@ void setMotorSpeeds(int speedLeft, int speedRight)
 
 void test() {
     // This mode just drives a 1m-per-side box to show calibration and help with tuning
-
     // Cartesian coordinate of latest location estimate.
     // Length unit correspond to the one specified under MEASUREMENTS.
     double x = deadReckoner.getX();
@@ -249,8 +258,17 @@ void test() {
 
     // getTheta method returns the robot position angle in radians measured from the x axis to the center of the robot.
     // This angle is set initially at zero before the robot starts moving.
+    Serial.print("left, right ticks:");
+    Serial.print(leftTicks);
+    Serial.print(" ");
+    Serial.println(rightTicks); 
     double theta = deadReckoner.getTheta();
-
+    Serial.print("Theta: ");
+    Serial.println(theta*RAD_TO_DEG);
+    Serial.print("X distance: ");
+    Serial.print(abs(x));
+    Serial.print(" Y distance: ");
+    Serial.println(abs(y));
     // Total distance robot has traveled.
     double distance = sqrt(x * x + y * y);
     Serial.print("Distance: ");
@@ -260,8 +278,10 @@ void test() {
       }
     else {
       setMotorSpeeds(0,0);
+      testdone = true;
+      Serial.println("Test competed. Hit Enter to repeat...");
       }
-
+  
 //    Serial.print("x: "); Serial.print(x);
 //    Serial.print("\ty: "); Serial.print(y);
 //    Serial.print("\twl: "); Serial.print(wl);
@@ -272,25 +292,34 @@ void test() {
 }
 
 void loop() {
-//  Serial.println("loop running");
+//  Serial.println("Running loop");
   leftTicks = encoderLeft.read();
   rightTicks = encoderRight.read();
-//  Serial.print("left, right:");
-//  Serial.print(leftTicks);
-//  Serial.print(" ");
-//  Serial.println(rightTicks);
   if (millis() - prevPositionComputeTime > POSITION_COMPUTE_INTERVAL) {
     // Computes the new angular velocities and uses that to compute the new position.
-    // The accuracy of the position estimate will increase with smaller time interval until a certain point.
-    deadReckoner.computePosition();
-    prevPositionComputeTime = millis();
-    if (testmode) {
+    // The accuracy of the position estimate will increase with smaller time interval until a certain point. 
+    if (!testmode) {
+        deadReckoner.computePosition();  // only keep this running if you're not in test mode
+    }
+    if ((testmode) && (!testdone)) {
+      deadReckoner.computePosition();  // only run this if in test mode and the test is not finished
       test();
     }
-//    Serial.println("Command sent");
+    if ((testmode) && (testdone)){
+      while(Serial.available() > 0) {   // wait for user input
+        Serial.read ();  // read and discard any input
+        
+        on_reset_encoder();
+        deadReckoner.reset();
+        deadReckoner.setTheta(0); 
+        pidLeft.reset();
+        pidRight.reset();
+        testdone = false; // start test again
+        }
       }
+    prevPositionComputeTime = millis();  
+    }
   if (millis() - prevSendTime > SEND_INTERVAL) {
-
     // if you want to send position information, do it here
     prevSendTime = millis();
   }
