@@ -1,5 +1,5 @@
 #include <L293.h>
-#include <DeadReckoner.h>
+#include "DeadReckoner.h"
 #include <Encoder.h>
 #include <CmdMessenger.h>
 #include <TimedPID.h>
@@ -27,7 +27,8 @@ L293_twoWire motorRight(RightMotorPin, RightDirectionPin);
 // You can use any length unit as desired.
 #define RADIUS 25 // wheel radius in mm
 #define LENGTH 200 // wheel base length in mm
-#define TICKS_PER_REV 870
+#define TICKS_PER_REVL 870
+#define TICKS_PER_REVR 870
 #define LeftMaxRPM 40
 #define RightMaxRPM 40
 #define DEADZONE 5 // number of degrees off from target that qualify as a hit
@@ -70,7 +71,7 @@ unsigned long prevPositionComputeTime = millis(), prevSendTime = millis();
 // Previous x and y coordinate.
 double prevX = 0, prevY = 0;
 
-DeadReckoner deadReckoner(&leftTicks, &rightTicks, TICKS_PER_REV, RADIUS, LENGTH);
+DeadReckoner deadReckoner(&leftTicks, &rightTicks, TICKS_PER_REVL,TICKS_PER_REVR, RADIUS, LENGTH);
 
 enum {
     drive,
