@@ -4,7 +4,7 @@
 ## Copyright(c) 2019 Intel Corporation. All Rights Reserved.
 
 #####################################################
-##           librealsense T265 example             ##
+# Sample of using RealSense T265 with Roboclaw motor controller
 #####################################################
 
 # First import the library
