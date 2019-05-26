@@ -4,7 +4,7 @@
 ## Copyright(c) 2019 Intel Corporation. All Rights Reserved.
 
 #####################################################
-# Sample of using RealSense T265 with Roboclaw motor controller
+##           librealsense T265 example             ##
 #####################################################
 
 # First import the library
@@ -16,6 +16,11 @@ import transformations as tf
 import csv
 import numpy as np
 from roboclaw import Roboclaw
+from simple_pid import PID
+
+pid = PID(1, 0.1, 0.05, setpoint=1)
+pid.sample_time = 0.1  # update every 0.1 seconds
+
 
 #Windows comport name
 #rc = Roboclaw("COM3",115200)
@@ -29,10 +34,11 @@ x_offset = 0
 y_offset = 0
 x = 0
 y = 0
-cruise_speed = 40
+cruise_speed = 15
 old_x = 0
 old_y = 0
 steering_dir = 1  # +/- 1 for direction of robot motors
+steering_gain = 10
 testmode = False
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
@@ -99,13 +105,26 @@ def dir(heading, desired_angle):
     direction = steering_dir * direction # reverse if needed for robot
     return direction
 
+def rotate (desired_angle):
+        print('Starting rotation')
+        heading = get_heading()
+        while (heading < desired_angle - 10) or (heading > desired_angle + 10):  # now do the fine rotation fast
+            heading = get_heading()
+            delta_angle = heading-desired_angle  # get the difference between the current and intended angle
+            direction = dir(heading, desired_angle)
+            print ("Current heading:", round(heading,1), "Desired angle:", round(desired_angle), "Delta angle:", round(delta_angle,1), "Direction: ", direction))
+            rc.SpeedDistanceM1(address,-1* direction* 2000,20*tickdistanceL,1)
+            rc.SpeedDistanceM2(address,direction * 2000,20*tickdistanceR,1)
+            time.sleep(1
+        return heading
+
 def get_heading():
     H_T265Ref_T265body = tf.quaternion_matrix([data.rotation.w, data.rotation.x,data.rotation.y,data.rotation.z]) # in transformations, Quaternions w+ix+jy+kz are represented as [w, x, y, z]!
     # transform to aeronautic coordinates (body AND reference frame!)
     H_aeroRef_aeroBody = H_aeroRef_T265Ref.dot( H_T265Ref_T265body.dot( H_T265body_aeroBody ))
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
     heading = rpy_rad[2]*180/math.pi
-    if heading < 0: heading = 360+heading
+#    if heading < 0: heading = 360+heading
 #    print ("Heading", round(heading))
 #     qw = data.rotation.w # Realsense IMU data quaternians
 #     qx = data.rotation.x
@@ -128,8 +147,9 @@ def get_heading():
     return heading
 
 def drive(angle, speed):
-	left_speed = int((100 * cruise_speed) + (angle * 10))
-	right_speed = int((100 * cruise_speed) - (angle * 10))
+	left_speed = int((100 * cruise_speed) + (angle * steering_gain))
+	left_speed
+	right_speed = int((100 * cruise_speed) - (angle * steering_gain))
 	print ("Left: ", left_speed, "Right: ", right_speed)
 	rc.SpeedM1(address,left_speed)
 	rc.SpeedM2(address,right_speed)
@@ -139,13 +159,14 @@ def navigate(x,y,heading):
         delta_x = waypoint[waypoint_num][0] - x  # calculate angle to target
         delta_y = waypoint[waypoint_num][1] - y
         range = math.sqrt(delta_y**2 + delta_x**2)
-        desired_angle = math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
+        desired_angle = 90-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
+        if desired_angle > 180:
+                desired_angle = -1 * (360-desired_angle) # turning counterclockwise is negative
         #    direction = dir(heading, desired_angle)
         delta_angle = desired_angle - heading
-        print ("Current heading", round(heading), "Waypoint angle", round(desired_angle), "Steer angle", round(delta_angle))
+        print ("Current heading", round(heading), "Waypoint angle", round(desired_angle), "Steer angle", round(delta_angle), "Range", round(range,2))
         drive (delta_angle, cruise_speed)
-        print ("Range", round(range,3))
-        if range < 0.1:
+        if range < 0.2:
                 waypoint_num = waypoint_num + 1
                 if waypoint_num > 3:
                     waypoint_num = 0   # start over from beginning of waypoints
@@ -190,11 +211,11 @@ try:
                                 #            yaw = pose.QueryYaw()
                                 data = pose.get_pose_data()
                                 x = data.translation.x
-                                y = data.translation.z # don't ask me why, but in "VR space", y is z
+                                y = -1 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
                                 print("Current X", round(x,2),"Y", round(y,2))
                                 print("Waypoint #", waypoint_num, " Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
                                 heading = get_heading()
-                                time.sleep(0.2) # don't flood the print buffer
+                                time.sleep(0.1) # don't flood the print buffer
                                 #            print ("heading", round(heading,2))
                                 navigate(x,y,heading)
 
