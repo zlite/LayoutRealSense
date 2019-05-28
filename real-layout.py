@@ -10,6 +10,7 @@
 # First import the library
 import pyrealsense2 as rs
 import serial
+from serial.tools.list_ports import comports
 import time
 import math
 import transformations as tf
@@ -17,6 +18,9 @@ import csv
 import numpy as np
 from roboclaw import Roboclaw
 from simple_pid import PID
+from marvelmind import MarvelmindHedge
+import sys
+sys.path.append('../')
 
 pid = PID(1, 0.1, 0.05, setpoint=1)
 pid.sample_time = 0.1  # update every 0.1 seconds
@@ -36,6 +40,8 @@ x_offset = 0
 y_offset = 0
 x = 0
 y = 0
+use_marvelmind = True
+hedgehog_id = 1
 cruise_speed = 15
 old_x = 0
 old_y = 0
@@ -75,6 +81,32 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
         line_count += 1
     print('Loaded', line_count, 'waypoints')
     waypoint_total = line_count
+
+# initiate local positioning
+if use_marvelmind:
+    marvelmind_vid = 1155   # VID of Marvelmind devices in hex
+    found = False
+    for port in comports():
+        if port.vid == marvelmind_vid:
+            hedgeport = port.device
+            found = True
+    if found == True:
+        print ("Marvelmind port:", hedgeport)
+        hedge = MarvelmindHedge(tty = hedgeport,adr=hedgehog_id, debug=False) # create MarvelmindHedge thread
+        hedge.start() # start thread
+        time.sleep(1) # pause to let it settle
+    else:
+        print ("Marvelmind not found")
+        if nav_test == False:  # not running a diagnostic test, so can't work without Marvelmind
+            print ("Exiting...")
+            sys.exit()    
+
+def get_position():
+    global hedgehog_x
+    global hedgehog_y
+    position = hedge.position()
+    hedgehog_x = position[1] + x_offset
+    hedgehog_y = position[2] + y_offset
 
 def displayspeed():
 	enc1 = rc.ReadEncM1(address)
@@ -163,22 +195,13 @@ try:
                                 buffers = (0,0,0)
                                 displayspeed()
                                 time.sleep(2)
+#                                temp = raw_input("Hit enter to continue")
                                 if (waypoints == 0): # straight
                                         rc.SpeedDistanceM1(address,2000,500*tickdistanceL,1)
                                         rc.SpeedDistanceM2(address,2000,500*tickdistanceR,1)
                                 if (waypoints == 1): # turn
                                         rc.SpeedDistanceM1(address,-2000,200*tickdistanceL,1)
                                         rc.SpeedDistanceM2(address,2000,200*tickdistanceR,1)
-                                if (waypoints == 2):
-                                        rc.SpeedDistanceM1(address,-2000,500*tickdistanceL,1)
-                                        rc.SpeedDistanceM2(address,2000,500*tickdistanceR,1)
-                                if (waypoints == 3):
-                                        rc.SpeedDistanceM1(address,2000,1000*tickdistanceL,1)
-                                        rc.SpeedDistanceM2(address,2000,1000*tickdistanceR,1)
-                                while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-                                        print ("Buffers: ", buffers[1]," ", buffers[2])
-                                        displayspeed()
-                                        buffers = rc.ReadBuffers(address)
                                 print ("Next waypoint")
                                 if (waypoints < 1):
                                         waypoints = waypoints + 1
