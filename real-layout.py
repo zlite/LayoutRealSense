@@ -26,6 +26,8 @@ pid.sample_time = 0.1  # update every 0.1 seconds
 #rc = Roboclaw("COM3",115200)
 #Linux comport name
 rc = Roboclaw("/dev/ttyACM0",0x80)
+tickdistanceL = 10 #  number of left encoder ticks per mm traveled
+tickdistanceR = 10 #  number of right encoder ticks per mm traveled
 waypoint_file = 'waypoints_office.csv'
 waypoint_num = 0
 waypoints = 0
@@ -37,7 +39,7 @@ y = 0
 cruise_speed = 15
 old_x = 0
 old_y = 0
-steering_dir = 1  # +/- 1 for direction of robot motors
+steering_dir = -1  # +/- 1 for direction of robot motors
 steering_gain = 10
 testmode = False
 # Declare RealSense pipeline, encapsulating the actual device and sensors
@@ -107,70 +109,48 @@ def dir(heading, desired_angle):
 
 def rotate (desired_angle):
         print('Starting rotation')
-        heading = get_heading()
-        while (heading < desired_angle - 10) or (heading > desired_angle + 10):  # now do the fine rotation fast
-            heading = get_heading()
-            delta_angle = heading-desired_angle  # get the difference between the current and intended angle
-            direction = dir(heading, desired_angle)
-            print ("Current heading:", round(heading,1), "Desired angle:", round(desired_angle), "Delta angle:", round(delta_angle,1), "Direction: ", direction))
-            rc.SpeedDistanceM1(address,-1* direction* 2000,20*tickdistanceL,1)
-            rc.SpeedDistanceM2(address,direction * 2000,20*tickdistanceR,1)
-            time.sleep(1
-        return heading
+        heading = 999  # initialize
+        while (heading < desired_angle - 1) or (heading > desired_angle + 1): 
+            frames = pipe.wait_for_frames()
+            pose = frames.get_pose_frame()
+            if pose:
+                data = pose.get_pose_data()
+                heading = get_heading(data)
+                delta_angle = heading-desired_angle  # get the difference between the current and intended angle
+                direction = dir(heading, desired_angle)
+                print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle), "Delta angle:", round(delta_angle,1), "Direction: ", direction)
+                rc.ResetEncoders(address)
+                rc.SpeedDistanceM1(address,-1*direction*2500,1*tickdistanceL,1) # rotate a few degrees
+                rc.SpeedDistanceM2(address,direction*2500,1*tickdistanceR,1)
+                buffers = (0,0,0)
+                while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+ #                   displayspeed()
+                    buffers = rc.ReadBuffers(address)
 
-def get_heading():
+
+def get_heading(data):  # this is essentially magic ;-)
     H_T265Ref_T265body = tf.quaternion_matrix([data.rotation.w, data.rotation.x,data.rotation.y,data.rotation.z]) # in transformations, Quaternions w+ix+jy+kz are represented as [w, x, y, z]!
     # transform to aeronautic coordinates (body AND reference frame!)
     H_aeroRef_aeroBody = H_aeroRef_T265Ref.dot( H_T265Ref_T265body.dot( H_T265body_aeroBody ))
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
-    heading = rpy_rad[2]*180/math.pi
-#    if heading < 0: heading = 360+heading
-#    print ("Heading", round(heading))
-#     qw = data.rotation.w # Realsense IMU data quaternians
-#     qx = data.rotation.x
-#     qy = -1 * data.rotation.y
-#     qz = -1 * data.rotation.z
-#     yaw = math.atan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
-#     pitch = math.asin(-2.0*(qx*qz - qw*qy))
-#     roll = math.atan2(2.0*(qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz)
-#     yaw *= 180.0 / math.pi  # convert to degrees
-#     pitch *= 180.0 / math.pi
-#     roll *= 180.0 / math.pi
-#     if yaw < 0: yaw += 360.0  # Ensure yaw stays between 0 and 360
-#     if pitch < 0: pitch += 360.0  # Ensure yaw stays between 0 and 360
-#     if roll < 0: roll += 360.0  # Ensure yaw stays between 0 and 360
-#     print ("Yaw", round(yaw), "Pitch", round(pitch), "Roll", round(roll))
-# #    heading = math.atan2(2.0 * (QZ * QW + QX * QY), 2.0 * (QW * QW + QX * QX))
-#     heading = pitch
-#     print ("Heading", heading)
-#     if heading < 0: heading += 360.0  # Ensure yaw stays between 0 and 360
+    heading = rpy_rad[2]*180.00/math.pi
     return heading
 
-def drive(angle, speed):
-	left_speed = int((100 * cruise_speed) + (angle * steering_gain))
-	left_speed
-	right_speed = int((100 * cruise_speed) - (angle * steering_gain))
-	print ("Left: ", left_speed, "Right: ", right_speed)
-	rc.SpeedM1(address,left_speed)
-	rc.SpeedM2(address,right_speed)
-
-def navigate(x,y,heading):
-        global waypoint_num, waypoints
-        delta_x = waypoint[waypoint_num][0] - x  # calculate angle to target
-        delta_y = waypoint[waypoint_num][1] - y
-        range = math.sqrt(delta_y**2 + delta_x**2)
-        desired_angle = 90-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
-        if desired_angle > 180:
-                desired_angle = -1 * (360-desired_angle) # turning counterclockwise is negative
-        #    direction = dir(heading, desired_angle)
-        delta_angle = desired_angle - heading
-        print ("Current heading", round(heading), "Waypoint angle", round(desired_angle), "Steer angle", round(delta_angle), "Range", round(range,2))
-        drive (delta_angle, cruise_speed)
-        if range < 0.2:
-                waypoint_num = waypoint_num + 1
-                if waypoint_num > 3:
-                    waypoint_num = 0   # start over from beginning of waypoints
-
+def drive(speed, distance):
+        print ("Driving straight")
+        rc.ResetEncoders(address)
+        rc.SpeedDistanceM1(address,speed*100,10*distance*tickdistanceL,1) # Go 10cm (100mm) 
+        rc.SpeedDistanceM2(address,speed*100,10*distance*tickdistanceR,1)
+        buffers = (0,0,0)
+        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+            frames = pipe.wait_for_frames()
+            pose = frames.get_pose_frame()
+            if pose:
+                data = pose.get_pose_data()
+                x = data.translation.x
+                y = -1 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                print("Current X", round(x,2),"Y", round(y,2))
+            buffers = rc.ReadBuffers(address)
 
 
 # main loop
@@ -211,15 +191,31 @@ try:
                                 #            yaw = pose.QueryYaw()
                                 data = pose.get_pose_data()
                                 x = data.translation.x
-                                y = -1 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                                y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
                                 print("Current X", round(x,2),"Y", round(y,2))
                                 print("Waypoint #", waypoint_num, " Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
-                                heading = get_heading()
+                                heading = get_heading(data)
                                 time.sleep(0.1) # don't flood the print buffer
                                 #            print ("heading", round(heading,2))
-                                navigate(x,y,heading)
+                                delta_x = waypoint[waypoint_num][0] - x  # calculate distance to target
+                                delta_y = waypoint[waypoint_num][1] - y
+                                print ("Delta X: ", delta_x, "Y: ", delta_y)
+                                range = math.sqrt(delta_y**2 + delta_x**2)
+                                desired_angle = 90.000-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
+                                if desired_angle > 180:
+                                        desired_angle = -1 * (360.000-desired_angle) # turning counterclockwise is negative
+                                print ("Current heading", round(heading), "Waypoint angle", round(desired_angle),"Range", round(range,2))
+                                if range > 0.2:
+                                    rotate(desired_angle) # rotate to the current desired heading
+                                    drive (cruise_speed,10) # drive straight 10 cm
+                                else:
+                                    drive (cruise_speed, 20)  # drive straight 20 cm
+                                if range < 0.05:
+                                        waypoint_num = waypoint_num + 1
+                                        if waypoint_num > 3:
+                                            waypoint_num = 0   # start over from beginning of waypoints
 
 except KeyboardInterrupt:
-        rc.ForwardM1(address,0)
+        rc.ForwardM1(address,0)  # kill motors
         rc.ForwardM2(address,0)
         pipe.stop()
