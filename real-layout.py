@@ -22,7 +22,7 @@ from marvelmind import MarvelmindHedge
 import sys
 sys.path.append('../')
 
-pid = PID(1, 0.1, 0.05, setpoint=1)
+pid = PID(1, 0.1, 0.05, setpoint=1)    # setting the P, I and D terms
 pid.sample_time = 0.1  # update every 0.1 seconds
 
 
@@ -174,9 +174,8 @@ def get_heading(data):  # this is essentially magic ;-)
     return heading
 
 def drive(speed, angle):
-        constrain(angle, -20, 20)
-        left_speed = int(cruise_speed*100 + angle*200)
-        right_speed = int(cruise_speed*100 - angle*200)
+        left_speed = int(cruise_speed*100 + math.atan(angle)*400)    # we use atan(angle) as a smoothing function
+        right_speed = int(cruise_speed*100 - math.atan(angle)*400)
         rc.SpeedM1(address,left_speed)
         rc.SpeedM2(address,right_speed)
         frames = pipe.wait_for_frames()
