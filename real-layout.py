@@ -17,18 +17,19 @@ import transformations as tf
 import csv
 import numpy as np
 from roboclaw import Roboclaw
-from simple_pid import PID
 from marvelmind import MarvelmindHedge
 import sys
 sys.path.append('../')
 
-pid = PID(1, 0.1, 0.05, setpoint=1)    # setting the P, I and D terms
-pid.sample_time = 0.1  # update every 0.1 seconds
+#from simple_pid import PID
+#pid = PID(1, 0.1, 0.05, setpoint=1)    # setting the P, I and D terms
+#pid.sample_time = 0.1  # update every 0.1 seconds
 
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
-waypoint_file = 'waypoints_office.csv'
+waypoint_file = 'waypoints_recorded.csv'
+record_file = 'waypoints_recorded.csv'
 waypoint_num = 0
 waypoints = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
@@ -45,7 +46,7 @@ old_x = 0
 old_y = 0
 new_waypoint = False
 steering_dir = -1  # +/- 1 for direction of robot motors
-steering_gain = 10
+steering_gain = 400
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
@@ -78,7 +79,6 @@ if version[0]==False:
 	print ("GETVERSION Failed")
 else:
 	print (repr(version[1]))
-
 
 with open(waypoint_file) as csv_file:  # change to whatever waypoint file you want
     csv_reader = csv.reader(csv_file, delimiter=',')
@@ -174,8 +174,8 @@ def get_heading(data):  # this is essentially magic ;-)
     return heading
 
 def drive(speed, angle):
-        left_speed = int(cruise_speed*100 + math.atan(angle)*400)    # we use atan(angle) as a smoothing function
-        right_speed = int(cruise_speed*100 - math.atan(angle)*400)
+        left_speed = int(cruise_speed*100 + math.atan(angle)*steering_gain)    # we use atan(angle) as a smoothing function
+        right_speed = int(cruise_speed*100 - math.atan(angle)*steering_gain)
         rc.SpeedM1(address,left_speed)
         rc.SpeedM2(address,right_speed)
         frames = pipe.wait_for_frames()
@@ -192,7 +192,40 @@ def drive(speed, angle):
 try:
         while True:
                 if (recordmode):
-                        temp = raw_input("Hit enter to continue")
+                        temp = raw_input("Hit l, r, f, s or w to go left, right, forward, stop or save waypoint")
+                        if (temp == "l"):
+                                print("Going left")
+                                drive(cruise_speed, -30)
+                        if (temp == "r"):
+                                print("Going right")
+                                drive(cruise_speed, 20)
+                        if (temp == "f"):
+                                print("Going forward")
+                                drive(cruise_speed, 0)
+                        if (temp == "s"):
+                                print("Stopping")
+                                rc.ForwardM1(address,0)  # kill motors
+                                rc.ForwardM2(address,0)
+                        if (temp == "w"):
+                                print("Saving waypoint #", waypoint_num)
+                                frames = pipe.wait_for_frames()
+                                pose = frames.get_pose_frame()
+                                if pose:
+                                        data = pose.get_pose_data()
+                                        x = data.translation.x
+                                        y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                                if (waypoint_num == 0):
+                                        with open(record_file, 'w') as csvfile:  # overwrite original file
+                                                recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                                                recordwriter.writerow([round(x,2), round(y,2)])
+
+                                else:
+                                        with open(record_file, 'a') as csvfile:  # append to file
+                                                recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                                                recordwriter.writerow([round(x,2), round(y,2)])
+                                waypoint_num = waypoint_num + 1
+
+                                
                 if (testmode):
                         while True:
                                 rc.ResetEncoders(address)
@@ -214,7 +247,7 @@ try:
                                         waypoints = waypoints + 1
                                 else:
                                         waypoints = 0
-                if (not testmode):                        
+                if ((not testmode) and (not recordmode)):     # This is regular record mode                   
                         frames = pipe.wait_for_frames()
                         pose = frames.get_pose_frame()
                         if pose:
