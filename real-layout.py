@@ -26,10 +26,6 @@ pid = PID(1, 0.1, 0.05, setpoint=1)
 pid.sample_time = 0.1  # update every 0.1 seconds
 
 
-#Windows comport name
-#rc = Roboclaw("COM3",115200)
-#Linux comport name
-rc = Roboclaw("/dev/ttyACM0",0x80)
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
 waypoint_file = 'waypoints_office.csv'
@@ -41,13 +37,15 @@ y_offset = 0
 x = 0
 y = 0
 use_marvelmind = True
+testmode = False
+recordmode = False
 hedgehog_id = 1
 cruise_speed = 15
 old_x = 0
 old_y = 0
+new_waypoint = False
 steering_dir = -1  # +/- 1 for direction of robot motors
 steering_gain = 10
-testmode = False
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
@@ -60,6 +58,16 @@ cfg.enable_stream(rs.stream.pose)
 # Start streaming with requested config
 pipe.start(cfg)
 
+
+roboclaw_vid = 0x03EB   # VID of Roboclaw device in hex
+found = False
+for port in comports():
+	if port.vid == roboclaw_vid:
+		roboclawport = port.device
+		found = True
+	if found == True:
+		print ("Roboclaw port:", roboclawport)
+		rc = Roboclaw(roboclawport,0x80)
 
 rc.Open()    # Start motor controller
 address = 0x80
@@ -84,7 +92,7 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
 
 # initiate local positioning
 if use_marvelmind:
-    marvelmind_vid = 1155   # VID of Marvelmind devices in hex
+    marvelmind_vid = 0x1155   # VID of Marvelmind devices in hex
     found = False
     for port in comports():
         if port.vid == marvelmind_vid:
@@ -97,9 +105,6 @@ if use_marvelmind:
         time.sleep(1) # pause to let it settle
     else:
         print ("Marvelmind not found")
-        if nav_test == False:  # not running a diagnostic test, so can't work without Marvelmind
-            print ("Exiting...")
-            sys.exit()    
 
 def get_position():
     global hedgehog_x
@@ -150,7 +155,7 @@ def rotate (desired_angle):
                 heading = get_heading(data)
                 delta_angle = heading-desired_angle  # get the difference between the current and intended angle
                 direction = dir(heading, desired_angle)
-                print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle), "Delta angle:", round(delta_angle,1), "Direction: ", direction)
+                print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle), "Direction: ", direction)
                 rc.ResetEncoders(address)
                 rc.SpeedDistanceM1(address,-1*direction*2500,1*tickdistanceL,1) # rotate a few degrees
                 rc.SpeedDistanceM2(address,direction*2500,1*tickdistanceR,1)
@@ -168,40 +173,43 @@ def get_heading(data):  # this is essentially magic ;-)
     heading = rpy_rad[2]*180.00/math.pi
     return heading
 
-def drive(speed, distance):
-        print ("Driving straight")
-        rc.ResetEncoders(address)
-        rc.SpeedDistanceM1(address,speed*100,10*distance*tickdistanceL,1) # Go 10cm (100mm) 
-        rc.SpeedDistanceM2(address,speed*100,10*distance*tickdistanceR,1)
-        buffers = (0,0,0)
-        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-            frames = pipe.wait_for_frames()
-            pose = frames.get_pose_frame()
-            if pose:
+def drive(speed, angle):
+        constrain(angle, -20, 20)
+        left_speed = int(cruise_speed*100 + angle*200)
+        right_speed = int(cruise_speed*100 - angle*200)
+        rc.SpeedM1(address,left_speed)
+        rc.SpeedM2(address,right_speed)
+        frames = pipe.wait_for_frames()
+        pose = frames.get_pose_frame()
+        if pose:
                 data = pose.get_pose_data()
                 x = data.translation.x
                 y = -1 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
-                print("Current X", round(x,2),"Y", round(y,2))
-            buffers = rc.ReadBuffers(address)
+ #               print("Going straight: Current X", round(x,2),"Y", round(y,2))
 
 
 # main loop
 
 try:
-        while True:        
+        while True:
+                if (recordmode):
+                        temp = raw_input("Hit enter to continue")
                 if (testmode):
                         while True:
                                 rc.ResetEncoders(address)
                                 buffers = (0,0,0)
                                 displayspeed()
                                 time.sleep(2)
-#                                temp = raw_input("Hit enter to continue")
                                 if (waypoints == 0): # straight
                                         rc.SpeedDistanceM1(address,2000,500*tickdistanceL,1)
                                         rc.SpeedDistanceM2(address,2000,500*tickdistanceR,1)
                                 if (waypoints == 1): # turn
                                         rc.SpeedDistanceM1(address,-2000,200*tickdistanceL,1)
                                         rc.SpeedDistanceM2(address,2000,200*tickdistanceR,1)
+                                buffers = (0,0,0)
+                                while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+                                    displayspeed()
+                                    buffers = rc.ReadBuffers(address)
                                 print ("Next waypoint")
                                 if (waypoints < 1):
                                         waypoints = waypoints + 1
@@ -222,21 +230,33 @@ try:
                                 #            print ("heading", round(heading,2))
                                 delta_x = waypoint[waypoint_num][0] - x  # calculate distance to target
                                 delta_y = waypoint[waypoint_num][1] - y
-                                print ("Delta X: ", delta_x, "Y: ", delta_y)
+#                                print ("Delta X: ", round(delta_x,2), "Y: ", round(delta_y,2))
                                 range = math.sqrt(delta_y**2 + delta_x**2)
-                                desired_angle = 90.000-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
+                                desired_angle = 90.000-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees     
                                 if desired_angle > 180:
                                         desired_angle = -1 * (360.000-desired_angle) # turning counterclockwise is negative
-                                print ("Current heading", round(heading), "Waypoint angle", round(desired_angle),"Range", round(range,2))
-                                if range > 0.2:
-                                    rotate(desired_angle) # rotate to the current desired heading
-                                    drive (cruise_speed,10) # drive straight 10 cm
-                                else:
-                                    drive (cruise_speed, 20)  # drive straight 20 cm
-                                if range < 0.05:
+                                turn_angle = abs(desired_angle-heading) # get difference between desired angle and current angle
+                                raw_turn_angle = turn_angle   # this is just for debugging
+                                if desired_angle < heading: # these next lines correct for all the edge cases and singularities 
+                                        turn_angle = -1 * turn_angle
+                                if turn_angle > 180:
+                                        turn_angle = -360 + turn_angle
+                                if turn_angle < -180:
+                                        turn_angle = 360 + turn_angle
+                                print ("Waypoint angle ", round(desired_angle), "Current heading ", round(heading), "Raw Turn Angle", round(raw_turn_angle,2), "Corrected Turn angle ", round(turn_angle,2), "Range ", round(range,2))
+                                if (range > 0.1) and (not new_waypoint):
+                                        drive (cruise_speed,turn_angle) # Steer towards waypoint
+                                if new_waypoint:
+                                        rotate(desired_angle)
+                                        new_waypoint = False
+                                        rc.ResetEncoders(address)
+                                if range <= 0.05:
+                                        print ("Hit waypoint")
                                         waypoint_num = waypoint_num + 1
                                         if waypoint_num > 3:
                                             waypoint_num = 0   # start over from beginning of waypoints
+                                        new_waypoint = True
+                                            
 
 except KeyboardInterrupt:
         rc.ForwardM1(address,0)  # kill motors
