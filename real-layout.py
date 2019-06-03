@@ -28,7 +28,7 @@ sys.path.append('../')
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
-waypoint_file = 'waypoints_recorded.csv'
+waypoint_file = 'waypoints_office.csv'
 record_file = 'waypoints_recorded.csv'
 waypoint_num = 0
 waypoints = 0
@@ -40,7 +40,7 @@ y = 0
 use_marvelmind = True
 testmode = False
 recordmode = False
-hedgehog_id = 1
+hedgehog_id = 6
 cruise_speed = 15
 old_x = 0
 old_y = 0
@@ -92,7 +92,7 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
 
 # initiate local positioning
 if use_marvelmind:
-    marvelmind_vid = 0x1155   # VID of Marvelmind devices in hex
+    marvelmind_vid = 1155   # VID of Marvelmind device
     found = False
     for port in comports():
         if port.vid == marvelmind_vid:
