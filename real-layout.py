@@ -35,9 +35,13 @@ waypoints = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
 x_offset = 0
 y_offset = 0
+starting_x = 0
+starting_y = 0
 x = 0
 y = 0
 use_marvelmind = True
+hedgehog_x = 0
+hedgehog_y = 0
 testmode = False
 recordmode = False
 hedgehog_id = 6
@@ -103,6 +107,10 @@ if use_marvelmind:
         hedge = MarvelmindHedge(tty = hedgeport,adr=hedgehog_id, debug=False) # create MarvelmindHedge thread
         hedge.start() # start thread
         time.sleep(1) # pause to let it settle
+        position = hedge.position()
+        starting_x = position[1] + x_offset
+        starting_y = position[2] + y_offset
+        
     else:
         print ("Marvelmind not found")
 
@@ -255,7 +263,7 @@ try:
                                 data = pose.get_pose_data()
                                 x = data.translation.x
                                 y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
-                                print("Current X", round(x,2),"Y", round(y,2))
+                                print("Realsense X", round(x,2),"Y", round(y,2), "Corrected X:", round(x+starting_x,2), "Y:", round(y+starting_y,2))
                                 print("Waypoint #", waypoint_num, " Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
                                 heading = get_heading(data)
                                 time.sleep(0.1) # don't flood the print buffer
@@ -275,7 +283,10 @@ try:
                                         turn_angle = -360 + turn_angle
                                 if turn_angle < -180:
                                         turn_angle = 360 + turn_angle
-                                print ("Waypoint angle ", round(desired_angle), "Current heading ", round(heading), "Raw Turn Angle", round(raw_turn_angle,2), "Corrected Turn angle ", round(turn_angle,2), "Range ", round(range,2))
+                                if use_marvelmind:
+                                    get_position()
+                                    print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
+                                print ("Waypoint angle ", round(desired_angle), "Current heading ", round(heading), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
                                 if (range > 0.1) and (not new_waypoint):
                                         drive (cruise_speed,turn_angle) # Steer towards waypoint
                                 if new_waypoint:
@@ -294,3 +305,5 @@ except KeyboardInterrupt:
         rc.ForwardM1(address,0)  # kill motors
         rc.ForwardM2(address,0)
         pipe.stop()
+        if use_marvelmind:
+            hedge.stop()  # stop and close serial port
