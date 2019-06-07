@@ -45,12 +45,12 @@ hedgehog_y = 0
 testmode = False
 recordmode = False
 hedgehog_id = 6
-cruise_speed = 15
+cruise_speed = 25
 old_x = 0
 old_y = 0
 new_waypoint = False
 steering_dir = -1  # +/- 1 for direction of robot motors
-steering_gain = 400
+steering_gain = 200
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
@@ -165,8 +165,12 @@ def rotate (desired_angle):
                 direction = dir(heading, desired_angle)
                 print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle), "Direction: ", direction)
                 rc.ResetEncoders(address)
-                rc.SpeedDistanceM1(address,-1*direction*2500,1*tickdistanceL,1) # rotate a few degrees
-                rc.SpeedDistanceM2(address,direction*2500,1*tickdistanceR,1)
+	        if (heading < desired_angle - 15) or (heading > desired_angle + 15):
+			speed = 2500  # go fast
+		else:
+			speed = 1500   # go slow
+                rc.SpeedDistanceM1(address,-1*direction*speed,1*tickdistanceL,1) # rotate a few degrees
+                rc.SpeedDistanceM2(address,direction*speed,1*tickdistanceR,1)
                 buffers = (0,0,0)
                 while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
  #                   displayspeed()
