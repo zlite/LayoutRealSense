@@ -31,7 +31,10 @@ translation_x = 0
 translation_y = 0
 rotation = 0
 scale = 0
-realx, realy, marvelx, marvely = 0
+real_x = 0
+real_y = 0
+marvel_x = 0
+marvel_y = 0
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
@@ -206,50 +209,54 @@ def drive(speed, angle):
  #               print("Going straight: Current X", round(x,2),"Y", round(y,2))
 
 
-# main loop
+
 
 def position_snapshot():
-	global realx, realy, marvelx, marvely
-    frames = pipe.wait_for_frames()
-    pose = frames.get_pose_frame()
-    if pose:
-            data = pose.get_pose_data()
-            x = data.translation.x
-            y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
-            print("Realsense X", round(x,2),"Y", round(y,2))
-			realx = x
-			realy = y
-	get_position()
-	print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
-	marvel x = hedgehog_x
-	marvel_y = hedgehog_y
+        global real_x, real_y, marvel_x, marvel_y
+        frames = pipe.wait_for_frames()
+        pose = frames.get_pose_frame()
+        if pose:
+                data = pose.get_pose_data()
+                x = data.translation.x
+                y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                print("Realsense X", round(x,2),"Y", round(y,2))
+                real_x = x
+                real_y = y
+        get_position()
+        print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
+        marvel_x = hedgehog_x
+        marvel_y = hedgehog_y
 
 
 if use_marvelmind: # calibrate Realsense
 	position_snapshot()
-	realx1 = realx
-	realy1 = realy
-	marvelx1 = marvelx
-	marvely1 = marvely
-	rc.SpeedDistanceM1M2(address,2000,2000,2000,2000,1)  # go forward 2m at speed 2000
-    buffers = (0,0,0)
-    while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-        displayspeed()
-        buffers = rc.ReadBuffers(address)
+	real_x1 = real_x
+	real_y1 = real_y
+	marvel_x1 = marvel_x
+	marvel_y1 = marvel_y
+	speed = 2000
+	distance = 1000
+	rc.SpeedDistanceM1M2(address,speed,distance*tickdistanceL,speed,distance*tickdistanceR,1)  # go forward 1m at speed 2000
+        buffers = (0,0,0)
+        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+#               displayspeed()
+                buffers = rc.ReadBuffers(address)
 	position_snapshot()
-	realx2 = realx
-	realy2 = realy
-	marvelx2 = marvelx
-	marvely2 = marvely
-	vector_r = np.array((realx2-realx1), (realy2-realy1))
-	vector_m = np.array((marvelx2-marvelx1), (marvely2-marvely1))
-	length_r = math.sqrt((realx2-realx1)^2 + (realy2-realy1)^2)  # length of vector
-	length_m = math.sqrt((marvelx2-marvelx1)^2 + (marvely2-marvely1)^2)
-	scale = length_r/length_m   # difference between marvelmine (absolute) and realsense (approximated) distance scale
-	translation_x = marvelx1-realx1
-	translation_y = marvely2-realy2
-	dot_product = vector_r*vector_m  # multiply the vector matrices
+	real_x2 = real_x
+	real_y2 = real_y
+	marvel_x2 = marvel_x
+	marvel_y2 = marvel_y
+	vector_r = np.array([real_x2-real_x1,real_y2-real_y1]) # realsense travel vector
+	vector_m = np.array([marvel_x2-marvel_x1, marvel_y2-marvel_y1]) # marvelmind travel vector
+	length_r = math.sqrt((real_x2-real_x1)**2 + (real_y2-real_y1)**2)  # length of vector
+	length_m = math.sqrt((marvel_x2-marvel_x1)**2 + (marvel_y2-marvel_y1)**2)
+	scale = length_r/length_m   # difference between marvelmind (absolute) and realsense (approximated) distance scale
+	translation_x = marvel_x1-real_x1
+	translation_y = marvel_y1-real_y1
+	dot_product = np.dot(vector_r,vector_m)  # multiply the vector matrices
 	rotation = math.degrees(math.acos(dot_product/(length_r*length_m)))    # formula is cos(angle) = (vector1*vector2)/(length1*length2)
+
+# main loop
 
 try:
         while True:
