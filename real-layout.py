@@ -26,6 +26,13 @@ sys.path.append('../')
 #pid.sample_time = 0.1  # update every 0.1 seconds
 
 
+# these are the affine transformation variables
+translation_x = 0
+translation_y = 0
+rotation = 0
+scale = 0
+realx, realy, marvelx, marvely = 0
+
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
 waypoint_file = 'waypoints_office.csv'
@@ -110,7 +117,7 @@ if use_marvelmind:
         position = hedge.position()
         starting_x = position[1] + x_offset
         starting_y = position[2] + y_offset
-        
+
     else:
         print ("Marvelmind not found")
 
@@ -155,7 +162,7 @@ def dir(heading, desired_angle):
 def rotate (desired_angle):
         print('Starting rotation')
         heading = 999  # initialize
-        while (heading < desired_angle - 1) or (heading > desired_angle + 1): 
+        while (heading < desired_angle - 1) or (heading > desired_angle + 1):
             frames = pipe.wait_for_frames()
             pose = frames.get_pose_frame()
             if pose:
@@ -201,6 +208,49 @@ def drive(speed, angle):
 
 # main loop
 
+def position_snapshot():
+	global realx, realy, marvelx, marvely
+    frames = pipe.wait_for_frames()
+    pose = frames.get_pose_frame()
+    if pose:
+            data = pose.get_pose_data()
+            x = data.translation.x
+            y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+            print("Realsense X", round(x,2),"Y", round(y,2))
+			realx = x
+			realy = y
+	get_position()
+	print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
+	marvel x = hedgehog_x
+	marvel_y = hedgehog_y
+
+
+if use_marvelmind: # calibrate Realsense
+	position_snapshot()
+	realx1 = realx
+	realy1 = realy
+	marvelx1 = marvelx
+	marvely1 = marvely
+	rc.SpeedDistanceM1M2(address,2000,2000,2000,2000,1)  # go forward 2m at speed 2000
+    buffers = (0,0,0)
+    while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+        displayspeed()
+        buffers = rc.ReadBuffers(address)
+	position_snapshot()
+	realx2 = realx
+	realy2 = realy
+	marvelx2 = marvelx
+	marvely2 = marvely
+	vector_r = np.array((realx2-realx1), (realy2-realy1))
+	vector_m = np.array((marvelx2-marvelx1), (marvely2-marvely1))
+	length_r = math.sqrt((realx2-realx1)^2 + (realy2-realy1)^2)  # length of vector
+	length_m = math.sqrt((marvelx2-marvelx1)^2 + (marvely2-marvely1)^2)
+	scale = length_r/length_m   # difference between marvelmine (absolute) and realsense (approximated) distance scale
+	translation_x = marvelx1-realx1
+	translation_y = marvely2-realy2
+	dot_product = vector_r*vector_m  # multiply the vector matrices
+	rotation = math.degrees(math.acos(dot_product/(length_r*length_m)))    # formula is cos(angle) = (vector1*vector2)/(length1*length2)
+
 try:
         while True:
                 if (recordmode):
@@ -237,7 +287,7 @@ try:
                                                 recordwriter.writerow([round(x,2), round(y,2)])
                                 waypoint_num = waypoint_num + 1
 
-                                
+
                 if (testmode):
                         while True:
                                 rc.ResetEncoders(address)
@@ -259,7 +309,7 @@ try:
                                         waypoints = waypoints + 1
                                 else:
                                         waypoints = 0
-                if ((not testmode) and (not recordmode)):     # This is regular record mode                   
+                if ((not testmode) and (not recordmode)):     # This is regular record mode
                         frames = pipe.wait_for_frames()
                         pose = frames.get_pose_frame()
                         if pose:
@@ -276,12 +326,12 @@ try:
                                 delta_y = waypoint[waypoint_num][1] - y
 #                                print ("Delta X: ", round(delta_x,2), "Y: ", round(delta_y,2))
                                 range = math.sqrt(delta_y**2 + delta_x**2)
-                                desired_angle = 90.000-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees     
+                                desired_angle = 90.000-math.degrees(math.atan2(delta_y,delta_x))  # all converted into degrees
                                 if desired_angle > 180:
                                         desired_angle = -1 * (360.000-desired_angle) # turning counterclockwise is negative
                                 turn_angle = abs(desired_angle-heading) # get difference between desired angle and current angle
                                 raw_turn_angle = turn_angle   # this is just for debugging
-                                if desired_angle < heading: # these next lines correct for all the edge cases and singularities 
+                                if desired_angle < heading: # these next lines correct for all the edge cases and singularities
                                         turn_angle = -1 * turn_angle
                                 if turn_angle > 180:
                                         turn_angle = -360 + turn_angle
@@ -303,7 +353,7 @@ try:
                                         if waypoint_num > 3:
                                             waypoint_num = 0   # start over from beginning of waypoints
                                         new_waypoint = True
-                                            
+
 
 except KeyboardInterrupt:
         rc.ForwardM1(address,0)  # kill motors
