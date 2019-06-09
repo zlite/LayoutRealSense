@@ -56,6 +56,7 @@ testmode = False
 recordmode = False
 hedgehog_id = 6
 cruise_speed = 25
+steering_nudge = 200 # speed compensation for left/right imbalance when going straight in calibration
 old_x = 0
 old_y = 0
 new_waypoint = False
@@ -227,25 +228,16 @@ def position_snapshot():
         marvel_x = hedgehog_x
         marvel_y = hedgehog_y
 
-
-if use_marvelmind: # calibrate Realsense
-	position_snapshot()
-	real_x1 = real_x
-	real_y1 = real_y
-	marvel_x1 = marvel_x
-	marvel_y1 = marvel_y
-	speed = 2000
-	distance = 1000
-	rc.SpeedDistanceM1M2(address,speed,distance*tickdistanceL,speed,distance*tickdistanceR,1)  # go forward 1m at speed 2000
-        buffers = (0,0,0)
-        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-#               displayspeed()
-                buffers = rc.ReadBuffers(address)
-	position_snapshot()
-	real_x2 = real_x
-	real_y2 = real_y
-	marvel_x2 = marvel_x
-	marvel_y2 = marvel_y
+def calibrate_realsense(start, finish):
+        global scale, translation_x, translation_y, rotation
+        real_x1 = start[0]  # just spelling it all out for clarity
+        real_y1 = start[1]
+        marvel_x1 = start[2]
+        marvel_y1 = start[3]
+        real_x2 = finish[0]
+        real_y2 = finish[1]
+        marvel_x2 = finish[2]
+        marvel_y2 = finish[3]
 	vector_r = np.array([real_x2-real_x1,real_y2-real_y1]) # realsense travel vector
 	vector_m = np.array([marvel_x2-marvel_x1, marvel_y2-marvel_y1]) # marvelmind travel vector
 	length_r = math.sqrt((real_x2-real_x1)**2 + (real_y2-real_y1)**2)  # length of vector
@@ -257,6 +249,20 @@ if use_marvelmind: # calibrate Realsense
 	rotation = math.degrees(math.acos(dot_product/(length_r*length_m)))    # formula is cos(angle) = (vector1*vector2)/(length1*length2)
 
 # main loop
+
+if use_marvelmind: # calibrate Realsense by traveling forward 
+	position_snapshot() # get curent positions
+	start = np.array([real_x, real_y, marvel_x, marvel_y])
+	speed = 2000
+	distance = 1000
+	rc.SpeedDistanceM1M2(address,speed-steering_nudge,distance*tickdistanceL,speed+steering_nudge,distance*tickdistanceR,1)  # go forward 1m at speed 2000
+        buffers = (0,0,0)
+        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+                buffers = rc.ReadBuffers(address)
+	position_snapshot() # get curent positions
+        finish = np.array([real_x, real_y, marvel_x, marvel_y])
+        calibrate_realsense(start, finish)  # get affine transformation matrix elements
+        print("Scale:", round(scale,3), "Translation X ", round(translation_x,2), "Y", round(translation_y,2), "Rotation", round(rotation,2))
 
 try:
         while True:
