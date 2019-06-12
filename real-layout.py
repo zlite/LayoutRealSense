@@ -56,7 +56,7 @@ if use_marvelmind:
 else:
         new_waypoint = False        
 steering_dir = -1  # +/- 1 for direction of robot motors
-steering_gain = 200
+steering_gain = 250
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
@@ -258,6 +258,8 @@ def affine_transformation(original):
 # main loop
 
 if use_marvelmind: # first, calibrate Realsense by traveling forward for one meter
+        print("Pausing to let readings settle")
+        time.sleep(10)  # pause 10 seconds to let marvelmind readings settle
 	position_snapshot() # get current positions
 	start = np.array([real_x, real_y, marvel_x, marvel_y])
 	speed = 2000
@@ -266,6 +268,8 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
         buffers = (0,0,0)
         while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
                 buffers = rc.ReadBuffers(address)
+        print("Pausing to let readings settle")
+        time.sleep(10)  # pause 10 seconds to let marvelmind readings settle                
 	position_snapshot() # get current positions
         finish = np.array([real_x, real_y, marvel_x, marvel_y])
         calibrate_realsense(start, finish)  # save affine transformation matrix elements
@@ -375,7 +379,7 @@ try:
                                         rc.ResetEncoders(address)
                                 if (range > 0.1) and (not new_waypoint):
                                         drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
-                                if (range <= 0.2) and (not new_waypoint):
+                                if (range <= 0.1) and (not new_waypoint):
                                         print ("Hit waypoint")
                                         waypoint_num = waypoint_num + 1
                                         if waypoint_num > 3:
