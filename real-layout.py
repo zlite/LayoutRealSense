@@ -49,13 +49,13 @@ testmode = False
 recordmode = False
 hedgehog_id = 6
 cruise_speed = 25
-last_range = 0 
+last_range = 0
 steering_nudge = 200 # speed compensation for left/right imbalance when going straight in calibration
 old_x = 0
 old_y = 0
 new_waypoint = True
 steering_dir = -1  # +/- 1 for direction of robot motors
-steering_gain = 300
+steering_gain = 250
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
@@ -196,7 +196,7 @@ def get_heading(data):  # this is essentially magic ;-)
         heading = corrected_heading + math.pi/2  # rotated counterclockwise
         print("Raw heading", round(rpy_rad[2],2), "Corrected heading", round(corrected_heading,2), "Rotated heading", round(heading,2))
         if use_marvelmind:
-            heading = heading - rotation     
+            heading = heading - rotation
         return heading
 
 def drive(speed, angle):
@@ -364,7 +364,7 @@ try:
                                         translated = np.array([x,y]) # just dimension this for later use
                                         translated = affine_transformation(original)  # run all this through the affine transformation to change to Marvelmind coordindate frame
 #                                        print("Affine transformation. Original:", original, "Translated:", translated)
-                                        x = translated[0] 
+                                        x = translated[0]
                                         y = translated[1]
                                         print ("RealSense Raw X:", round(original[0],2), "Y:", round(original[1],2), "Translated X:", round (x,2), "Y:", round(y,2))
                                         get_position()
@@ -397,7 +397,7 @@ try:
                                         rc.ResetEncoders(address)
                                 if (range > 0.1) and (not new_waypoint):
                                         drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
-                                if (range <= 0.2) and (not new_waypoint):
+                                if (range <= 0.1) and (not new_waypoint):
                                         print ("Hit waypoint")
                                         waypoint_num = waypoint_num + 1
                                         if waypoint_num > 3:
