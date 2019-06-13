@@ -235,6 +235,13 @@ def calibrate_realsense(start, finish):
         real_y2 = finish[1]
         marvel_x2 = finish[2]
         marvel_y2 = finish[3]
+        delta_x = marvel_x2 - marvel_x1
+        delta_y = marvel_y2 - marvel_y1
+        heading_marvel = math.atan2(delta_y,delta_x)  #  get marvelmind heading
+        delta_x = real_x2 - real_x1
+        delta_y = real_y2 - real_y1
+        heading_real = math.atan2(delta_y,delta_x)  #  get realsense heading
+        print("Marvelmind heading:", round(heading_marvel,2), "Realsense heading: ", round(heading_real,2))
 	vector_r = np.array([real_x2-real_x1,real_y2-real_y1]) # realsense travel vector
 	vector_m = np.array([marvel_x2-marvel_x1, marvel_y2-marvel_y1]) # marvelmind travel vector
 	length_r = math.sqrt((real_x2-real_x1)**2 + (real_y2-real_y1)**2)  # length of vector
@@ -243,7 +250,9 @@ def calibrate_realsense(start, finish):
 	translation_x = marvel_x1-real_x1  # difference between starting positions of the two sensors
 	translation_y = marvel_y1-real_y1
 	dot_product = np.dot(vector_r,vector_m)  # multiply the vector matrices
-	rotation = math.acos(dot_product/(length_r*length_m))    # formula is cos(angle) = (vector1*vector2)/(length1*length2), so we solve for angle
+#	rotation = math.acos(dot_product/(length_r*length_m))    # formula is cos(angle) = (vector1*vector2)/(length1*length2), so we solve for angle
+	rotation = heading_marvel-heading_real
+        print("Scale:", round(scale,3), "Translation X ", round(translation_x,2), "Y", round(translation_y,2), "Rotation", round(rotation,2))
 
 def affine_transformation(original):
         global translated
@@ -276,7 +285,7 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
 	position_snapshot() # get current positions
         finish = np.array([real_x, real_y, marvel_x, marvel_y])
         calibrate_realsense(start, finish)  # save affine transformation matrix elements
-        print("Scale:", round(scale,3), "Translation X ", round(translation_x,2), "Y", round(translation_y,2), "Rotation", round(rotation,2))
+
 
 
 
