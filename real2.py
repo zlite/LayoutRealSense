@@ -26,11 +26,13 @@ sys.path.append('../')
 translation_x = 0
 translation_y = 0
 rotation = 0
-scale = 0
+scale_x = 0
+scale_y = 0
 real_x = 0
 real_y = 0
 marvel_x = 0
 marvel_y = 0
+translated = np.array([2.0,2.0]) # just dimension this for later use
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
@@ -46,6 +48,7 @@ use_marvelmind = True
 hedgehog_x = 0
 hedgehog_y = 0
 testmode = False
+position_testmode = True
 recordmode = False
 hedgehog_id = 6
 cruise_speed = 25
@@ -99,6 +102,7 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
     for row in csv_reader:
         waypoint[line_count][0] = float(row[0]) # x data
         waypoint[line_count][1] = float(row[1]) # y data
+        print("Waypoint #",line_count, "X,Y", waypoint[line_count][0], waypoint[line_count][1])
         line_count += 1
     print('Loaded', line_count, 'waypoints')
     waypoint_total = line_count
@@ -217,16 +221,16 @@ def position_snapshot():
                 data = pose.get_pose_data()
                 x = data.translation.x
                 y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
-                print("Realsense X", round(x,2),"Y", round(y,2))
+#                print("Realsense X", round(x,2),"Y", round(y,2))
                 real_x = x
                 real_y = y
         get_position()
-        print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
+#        print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
         marvel_x = hedgehog_x
         marvel_y = hedgehog_y
 
 def calibrate_realsense(start, finish):
-        global scale, translation_x, translation_y, rotation
+        global scale_x, scale_y, translation_x, translation_y, rotation
         real_x1 = start[0]  # just spelling it all out for clarity
         real_y1 = start[1]
         marvel_x1 = start[2]
@@ -235,37 +239,58 @@ def calibrate_realsense(start, finish):
         real_y2 = finish[1]
         marvel_x2 = finish[2]
         marvel_y2 = finish[3]
-        delta_x = marvel_x2 - marvel_x1
-        delta_y = marvel_y2 - marvel_y1
-        heading_marvel = math.atan2(delta_y,delta_x)  #  get marvelmind heading
-        delta_x = real_x2 - real_x1
-        delta_y = real_y2 - real_y1
-        heading_real = math.atan2(delta_y,delta_x)  #  get realsense heading
+        mdelta_x = marvel_x2 - marvel_x1
+        mdelta_y = marvel_y2 - marvel_y1
+        heading_marvel = math.atan2(mdelta_y,mdelta_x)  #  get marvelmind heading
+        rdelta_x = real_x2 - real_x1
+        rdelta_y = real_y2 - real_y1
+        heading_real = math.atan2(rdelta_y,rdelta_x)  #  get realsense heading
         print("Marvelmind heading:", round(heading_marvel,2), "Realsense heading: ", round(heading_real,2))
+        print("Marvelmind final position:", round(marvel_x2,2), round(marvel_y2,2),"Realsense final position ", round(real_x2,2), round(real_y2,2))
 	vector_r = np.array([real_x2-real_x1,real_y2-real_y1]) # realsense travel vector
 	vector_m = np.array([marvel_x2-marvel_x1, marvel_y2-marvel_y1]) # marvelmind travel vector
 	length_r = math.sqrt((real_x2-real_x1)**2 + (real_y2-real_y1)**2)  # length of vector
 	length_m = math.sqrt((marvel_x2-marvel_x1)**2 + (marvel_y2-marvel_y1)**2)
-	scale = length_r/length_m   # difference between marvelmind (absolute) and realsense (approximated) distance scale
 	translation_x = marvel_x1-real_x1  # difference between starting positions of the two sensors
 	translation_y = marvel_y1-real_y1
 	dot_product = np.dot(vector_r,vector_m)  # multiply the vector matrices
 #	rotation = math.acos(dot_product/(length_r*length_m))    # formula is cos(angle) = (vector1*vector2)/(length1*length2), so we solve for angle
 	rotation = heading_marvel-heading_real
-        print("Scale:", round(scale,3), "Translation X ", round(translation_x,2), "Y", round(translation_y,2), "Rotation", round(rotation,2))
+# now rotate and translate and find the scaling facotrs for x and y
+        real_x1 = real_x1 + translation_x
+        real_y1 = real_y1 + translation_y
+        real_x2 = real_x2 + translation_x
+        real_y2 = real_y2 + translation_y
+        real_x1 = real_x1*math.cos(rotation) - real_y1*math.sin(rotation)
+        real_y1 = real_x1*math.sin(rotation) + real_y1*math.cos(rotation)
+        real_x2 = real_x2*math.cos(rotation) - real_y2*math.sin(rotation)
+        real_y2 = real_x2*math.sin(rotation) + real_y2*math.cos(rotation)
+        rdelta_x = real_x2 - real_x1
+        rdelta_y = real_y2 - real_y1
+        scale_x = mdelta_x/rdelta_x  # find scaling factors for each axis
+        scale_y = mdelta_y/rdelta_y
+        print("Scale X:", round(scale_x,3), "Y:", round(scale_y,3),"Translation X ", round(translation_x,2), "Y", round(translation_y,2), "Rotation", round(rotation,2))
+
+
+
 
 def affine_transformation(original):
-        global translated
-        # first, do translation
-        translated[0] = original[0] + translation_x
-        translated[1] = original[1] + translation_y
-        # then do scaling
-        translated[0] = translated[0] * scale
-        translated[1] = translated[1] * scale
+        # first do scaling
+        temp = np.array([2.0,2.0])
+#        print("Original X", original[0], "Y", original[1])
+#        print("Scale X", scale_x)
+        scale1 = original[0] * scale_x
+        scale2 = original[1] * scale_y
+        # then do translation
+        trans1 = scale1 + translation_x
+        trans2 = scale2 + translation_y
         # then do rotation around origin(the equation of rotation is x′=x*cos(θ)−y*sin(θ) and y′=x*sin(θ)+y*cos(θ))
-        translated[0] = translated[0]*math.cos(rotation) - translated[1]*math.sin(rotation)
-        translated[1] = translated[0]*math.sin(rotation) + translated[1]*math.cos(rotation)
-        return translated
+        rotate1 = trans1*math.cos(rotation) - trans2*math.sin(rotation)
+        rotate2 = trans1*math.sin(rotation) + trans2*math.cos(rotation)
+        temp[0] = rotate1
+        temp[1] = rotate2
+        print ("Scaled", round(scale1, 2), round(scale2,2), "Translated", round(trans1,2), round(trans2,2), "Rotated:", round(rotate1,2), round(rotate2,2))       
+        return temp
 
 # main loop
 
@@ -347,7 +372,19 @@ try:
                                         waypoints = waypoints + 1
                                 else:
                                         waypoints = 0
-                if ((not testmode) and (not recordmode)):     # This is regular waypoint mode
+                if position_testmode:  # this just prints relatives positions while you manually move the rover around
+                        position_snapshot()  # this will return real and mavel x's and y's
+                        original = np.array([real_x,real_y])  # turn it into a vector
+                        print("Original", original)
+                        translated = affine_transformation(original)  # run all this through the affine transformation to change to Marvelmind coordindate frame
+                        real_x = translated[0] 
+                        real_y = translated[1]
+                        print("Marvelmind", round(marvel_x,2), round(marvel_y,2), "Realsense", round(real_x,2), round(real_y,2))
+                        time.sleep(0.5) # slow down the stream
+
+
+
+                if ((not testmode) and (not recordmode) and (not position_testmode)):     # This is regular waypoint mode
                         frames = pipe.wait_for_frames()
                         pose = frames.get_pose_frame()
                         if pose:
