@@ -12,7 +12,7 @@ import math
 import transformations as tf
 import csv
 import numpy as np
-from roboclaw import Roboclaw
+from roboclaw3 import Roboclaw
 from marvelmind import MarvelmindHedge
 import sys
 sys.path.append('../')
@@ -49,7 +49,7 @@ y = 0
 use_marvelmind = True
 hedgehog_x = 0
 hedgehog_y = 0
-testmode = False
+testmode = True
 position_testmode = True
 recordmode = False
 datalog = True
@@ -379,11 +379,11 @@ try:
 				waypoint_num = waypoint_num + 1
 
 
-		if (testmode):   # in test mode just do a box
+		if testmode:   # in test mode just do a box
 			while True:
 				rc.ResetEncoders(address)
 				buffers = (0,0,0)
-				displayspeed()
+#				displayspeed()
 				time.sleep(2)
 				if (waypoints == 0): # straight
 					rc.SpeedDistanceM1(address,2000,500*tickdistanceL,1)
@@ -393,31 +393,31 @@ try:
 					rc.SpeedDistanceM2(address,2000,200*tickdistanceR,1)
 				buffers = (0,0,0)
 				while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-				    displayspeed()
-				    buffers = rc.ReadBuffers(address)
+#				    displayspeed()
+                                        if position_testmode:  # this just prints relative positions while you move the rover around
+                                                position_snapshot()  # this will return real and mavel x's and y's
+                                                real = np.array([real_x, real_y])
+                                                marvel = transform(real)
+#                                                print("Fake Marvel", marvel)
+                                                
+                                                  
+                                        ##                        original = np.array([real_x,real_y])  # turn it into a vector
+                                        ###                        print("Original", original)
+                                        ##                        translated = affine_transformation(original)  # run all this through the affine transformation to change to Marvelmind coordindate frame
+                                        ##                        real_x = translated[0] 
+                                        ##                        real_y = translated[1]
+                                                print("Marvelmind", round(marvel_x,2), round(marvel_y,2), "Fake Marvel", round(marvel[0],2), round(marvel[1],2), "Realsense", round(real_x,2), round(real_y,2))
+                                                if datalog:
+                                                        with open(datalog_file, 'a') as csvfile:  # overwrite original file
+                                                                recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                                                                recordwriter.writerow(["Marvelmind", round(marvel_x,2), round(marvel_y,2), "Fake Marvel", round(marvel[0],2), round(marvel[1],2),"Realsense", round(real_x,2), round(real_y,2)])
+#                                                time.sleep(0.1) # slow down the stream
+                                        buffers = rc.ReadBuffers(address)
 				print ("Next waypoint")
 				if (waypoints < 1):
 					waypoints = waypoints + 1
 				else:
 					waypoints = 0
-		if position_testmode:  # this just prints relatives positions while you manually move the rover around
-			position_snapshot()  # this will return real and mavel x's and y's
-			real = np.array([real_x, real_y])
-			marvel = transform(real)
-			print("Fake Marvel", marvel)
-			
-			  
-##                        original = np.array([real_x,real_y])  # turn it into a vector
-###                        print("Original", original)
-##                        translated = affine_transformation(original)  # run all this through the affine transformation to change to Marvelmind coordindate frame
-##                        real_x = translated[0] 
-##                        real_y = translated[1]
-			print("Marvelmind", round(marvel_x,2), round(marvel_y,2), "Realsense", round(real_x,2), round(real_y,2))
-			if datalog:
-                                with open(datalog_file, 'a') as csvfile:  # overwrite original file
-                                        recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                                        recordwriter.writerow(["Marvelmind", round(marvel_x,2), round(marvel_y,2), "Realsense", round(real_x,2), round(real_y,2)])
-			time.sleep(0.5) # slow down the stream
 
 
 
