@@ -12,7 +12,7 @@ import math
 import transformations as tf
 import csv
 import numpy as np
-from roboclaw3 import Roboclaw
+from roboclaw_3 import Roboclaw
 from marvelmind import MarvelmindHedge
 import sys
 sys.path.append('../')
