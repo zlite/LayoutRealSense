@@ -46,11 +46,11 @@ waypoints = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
 x = 0
 y = 0
-use_marvelmind = True
+use_marvelmind = False
 hedgehog_x = 0
 hedgehog_y = 0
-testmode = True
-position_testmode = True
+testmode = False
+position_testmode = False
 recordmode = False
 datalog = True
 hedgehog_id = 6
@@ -113,7 +113,8 @@ with open(waypoint_file) as csv_file:  # change to whatever waypoint file you wa
 if datalog:
         with open(datalog_file, 'w') as csvfile:  # overwrite original file
                 recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                recordwriter.writerow(["New datalog"])
+                recordwriter.writerow(["Marvelmind X", "Marvelmind Y", "Fake Marvel X", "Fake Marvel Y","Realsense X", "Realsense Y"])
+
 
 # initiate local positioning
 if use_marvelmind:
@@ -320,6 +321,15 @@ def affine_transformation(original):
 #        print ("Scaled", round(scale1, 2), round(scale2,2), "Translated", round(trans1,2), round(trans2,2), "Rotated:", round(rotate1,2), round(rotate2,2))       
 	return temp
 
+def save_datalog():
+        with open(datalog_file, 'a') as csvfile:  # append to file
+                recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                if use_marvelmind:
+                        recordwriter.writerow([round(marvel_x,2), round(marvel_y,2), round(marvel[0],2), round(marvel[1],2),round(real_x,2), round(real_y,2)])
+                else:                        
+                        recordwriter.writerow([round(real_x,2), round(real_y,2)])
+
+
 # main loop
 
 if use_marvelmind: # first, calibrate Realsense by traveling forward for one meter
@@ -386,8 +396,8 @@ try:
 #				displayspeed()
 				time.sleep(2)
 				if (waypoints == 0): # straight
-					rc.SpeedDistanceM1(address,2000,500*tickdistanceL,1)
-					rc.SpeedDistanceM2(address,2000,500*tickdistanceR,1)
+					rc.SpeedDistanceM1(address,2000,1000*tickdistanceL,1)
+					rc.SpeedDistanceM2(address,2000,1000*tickdistanceR,1)
 				if (waypoints == 1): # turn
 					rc.SpeedDistanceM1(address,-2000,200*tickdistanceL,1)
 					rc.SpeedDistanceM2(address,2000,200*tickdistanceR,1)
@@ -398,6 +408,7 @@ try:
                                                 position_snapshot()  # this will return real and mavel x's and y's
                                                 real = np.array([real_x, real_y])
                                                 marvel = transform(real)
+                                                save_datalog()
 #                                                print("Fake Marvel", marvel)
                                                 
                                                   
@@ -407,10 +418,6 @@ try:
                                         ##                        real_x = translated[0] 
                                         ##                        real_y = translated[1]
                                                 print("Marvelmind", round(marvel_x,2), round(marvel_y,2), "Fake Marvel", round(marvel[0],2), round(marvel[1],2), "Realsense", round(real_x,2), round(real_y,2))
-                                                if datalog:
-                                                        with open(datalog_file, 'a') as csvfile:  # overwrite original file
-                                                                recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
-                                                                recordwriter.writerow(["Marvelmind", round(marvel_x,2), round(marvel_y,2), "Fake Marvel", round(marvel[0],2), round(marvel[1],2),"Realsense", round(real_x,2), round(real_y,2)])
 #                                                time.sleep(0.1) # slow down the stream
                                         buffers = rc.ReadBuffers(address)
 				print ("Next waypoint")
@@ -465,6 +472,7 @@ try:
 					rc.ResetEncoders(address)
 				if (range > 0.1) and (not new_waypoint):
 					drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
+					save_datalog()
 				if (range <= 0.1) and (not new_waypoint):
 					print ("Hit waypoint")
 					waypoint_num = waypoint_num + 1
