@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 ## License: Apache 2.0.
 
-
-# First import the library
 import pyrealsense2 as rs
 import serial
 from serial.tools.list_ports import comports
@@ -205,7 +203,7 @@ def get_heading(data):  # this is essentially magic ;-)
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
     heading = rpy_rad[2]
     if use_marvelmind:
-	    heading = heading - rotation     
+	    heading = heading - rotation  # reflects the fact that the RealSense and Marvelmind coordinate systems have opposite directions
     return heading
 
 def drive(speed, angle):
@@ -437,13 +435,13 @@ try:
 				x = data.translation.x
 				y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
 				if use_marvelmind:
-					original = np.array([x,y])  # turn it into a vector
-					translated = np.array([x,y]) # just dimension this for later use
-					translated = affine_transformation(original)  # run alll this through the affine transformation to change to Marvelmind coordindate frame
- #                                       print("Affine transformation. Original:", original, "Translated:", translated)
-					x = translated[0] 
-					y = translated[1]
-					position_snapshot()  # this will return real and mavel x's and y's
+##					original = np.array([x,y])  # turn it into a vector
+##					translated = np.array([x,y]) # just dimension this for later use
+##					translated = affine_transformation(original)  # run alll this through the affine transformation to change to Marvelmind coordindate frame
+## #                                       print("Affine transformation. Original:", original, "Translated:", translated)
+##					x = translated[0] 
+##					y = translated[1]
+##					position_snapshot()  # this will return real and mavel x's and y's
 					real = np.array([real_x, real_y])
 					marvel = transform(real)
 				print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
