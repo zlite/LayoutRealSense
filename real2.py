@@ -407,16 +407,14 @@ try:
                                                 real = np.array([real_x, real_y])
                                                 marvel = transform(real)
                                                 save_datalog()
-#                                                print("Fake Marvel", marvel)
-                                                
-                                                  
+#                                                print("Fake Marvel", marvel)                                                  
                                         ##                        original = np.array([real_x,real_y])  # turn it into a vector
                                         ###                        print("Original", original)
                                         ##                        translated = affine_transformation(original)  # run all this through the affine transformation to change to Marvelmind coordindate frame
                                         ##                        real_x = translated[0] 
                                         ##                        real_y = translated[1]
                                                 print("Marvelmind", round(marvel_x,2), round(marvel_y,2), "Fake Marvel", round(marvel[0],2), round(marvel[1],2), "Realsense", round(real_x,2), round(real_y,2))
-#                                                time.sleep(0.1) # slow down the stream
+                                                time.sleep(0.1) # slow down the stream
                                         buffers = rc.ReadBuffers(address)
 				print ("Next waypoint")
 				if (waypoints < 1):
@@ -435,13 +433,13 @@ try:
 				x = data.translation.x
 				y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
 				if use_marvelmind:
-##					original = np.array([x,y])  # turn it into a vector
-##					translated = np.array([x,y]) # just dimension this for later use
-##					translated = affine_transformation(original)  # run alll this through the affine transformation to change to Marvelmind coordindate frame
-## #                                       print("Affine transformation. Original:", original, "Translated:", translated)
+					original = np.array([x,y])  # turn it into a vector
+					translated = np.array([x,y]) # just dimension this for later use
+					translated = affine_transformation(original)  # run alll this through the affine transformation to change to Marvelmind coordindate frame
+ #                                       print("Affine transformation. Original:", original, "Translated:", translated)
 ##					x = translated[0] 
 ##					y = translated[1]
-##					position_snapshot()  # this will return real and mavel x's and y's
+					position_snapshot()  # this will return real and mavel x's and y's
 					real = np.array([real_x, real_y])
 					marvel = transform(real)
 				print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
