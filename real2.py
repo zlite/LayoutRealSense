@@ -46,7 +46,7 @@ waypoints = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
 x = 0
 y = 0
-use_marvelmind = False
+use_marvelmind = True
 hedgehog_x = 0
 hedgehog_y = 0
 testmode = False
@@ -325,9 +325,9 @@ def save_datalog():
         with open(datalog_file, 'a') as csvfile:  # append to file
                 recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
                 if use_marvelmind:
-                        recordwriter.writerow([round(marvel_x,2), round(marvel_y,2), round(marvel[0],2), round(marvel[1],2),round(real_x,2), round(real_y,2)])
+                        recordwriter.writerow([round(hedgehog_x,2), round(hedgehog_y,2), round(marvel[0],2), round(marvel[1],2),round(x,2), round(y,2)])
                 else:                        
-                        recordwriter.writerow([round(real_x,2), round(real_y,2)])
+                        recordwriter.writerow([round(x,2), round(y,2)])
 
 
 # main loop
@@ -443,6 +443,9 @@ try:
  #                                       print("Affine transformation. Original:", original, "Translated:", translated)
 					x = translated[0] 
 					y = translated[1]
+					position_snapshot()  # this will return real and mavel x's and y's
+					real = np.array([real_x, real_y])
+					marvel = transform(real)
 				print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
 				heading = get_heading(data)
 				time.sleep(0.1) # don't flood the print buffer
