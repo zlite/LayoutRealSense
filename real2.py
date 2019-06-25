@@ -289,7 +289,7 @@ def calibrate_realsense(start, finish):
 	offset = realsense_a - marvelmind_a
 	angle = angle_between(marvelmind_diff, realsense_diff)
 	def rs_to_mm(rs):
-	    return (rs - realsense_a).dot(rotation_matrix(angle) + marvelmind_a)
+	    return (rs - realsense_a)@rotation_matrix(angle) + marvelmind_a
 	return rs_to_mm
 
 
@@ -332,6 +332,7 @@ def save_datalog():
 
 if use_marvelmind: # first, calibrate Realsense by traveling forward for one meter
 	print("Pausing to let readings settle")
+	marvel=np.array([0,0])
 	time.sleep(5)  # pause 10 seconds to let marvelmind readings settle
 	position_snapshot() # get current positions
 	start = np.array([real_x, real_y, marvel_x, marvel_y])
@@ -340,7 +341,17 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
 	rc.SpeedDistanceM1M2(address,speed-steering_nudge,distance*tickdistanceL,speed+steering_nudge,distance*tickdistanceR,1)  # go forward 1m at speed 2000
 	buffers = (0,0,0)
 	while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-		buffers = rc.ReadBuffers(address)
+                buffers = rc.ReadBuffers(address)
+                frames = pipe.wait_for_frames()
+                pose = frames.get_pose_frame()
+                if pose:
+                        data = pose.get_pose_data()
+                        x = data.translation.x
+                        y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                        if use_marvelmind:
+                                get_position()
+                        save_datalog()
+                time.sleep(0.1)
 	print("Pausing to let readings settle")
 	time.sleep(5)  # pause 10 seconds to let marvelmind readings settle                
 	position_snapshot() # get current positions
