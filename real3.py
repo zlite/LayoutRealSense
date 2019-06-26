@@ -51,7 +51,7 @@ else:
 	new_waypoint = False        
 steering_dir = -1  # +/- 1 for direction of robot motors
 steering_gain = 250
-turn = False
+turn = True  # start by turning to first waypoint
 
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
@@ -165,30 +165,6 @@ def dir(heading, desired_angle):
                         direction = 1  # clockwise
         direction = steering_dir * direction # reverse if needed for robot
         return direction
-
-def rotate (desired_angle):
-	print('Starting rotation')
-	heading = 999  # initialize
-	while (heading < desired_angle - 0.02) or (heading > desired_angle + 0.02): # rotate until you're within a degree (0.02 radians) of target
-                frames = pipe.wait_for_frames()
-                pose = frames.get_pose_frame()
-                if pose:
-                        data = pose.get_pose_data()
-                        heading = get_heading(data)
-                        delta_angle = heading-desired_angle  # get the difference between the current and intended angle
-                        direction = dir(heading, desired_angle)
-                        print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle,3), "Direction: ", direction)
-                        rc.ResetEncoders(address)
-                if (heading < desired_angle - 0.25) or (heading > desired_angle + 0.25):  # go fast if you're more than .25 radians away
-                        speed = 2500  # go fast
-                else:
-                        speed = 1500   # go slow
-                rc.SpeedDistanceM1(address,-1*direction*speed,1*tickdistanceL,1) # rotate a few degrees
-                rc.SpeedDistanceM2(address,direction*speed,1*tickdistanceR,1)
-                buffers = (0,0,0)
-                while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
- #                   displayspeed()
-                        buffers = rc.ReadBuffers(address)
 
 def get_heading(data):  # this is essentially magic ;-)
     H_T265Ref_T265body = tf.quaternion_matrix([data.rotation.w, data.rotation.x,data.rotation.y,data.rotation.z]) # in transformations, Quaternions w+ix+jy+kz are represented as [w, x, y, z]!
@@ -390,9 +366,6 @@ try:
                                         if use_marvelmind:
                                             get_position()
                                         print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
-                                        if new_waypoint:
-#                                                rotate(desired_angle)
-                                                turn = True
                                         if (range > hit_radius) and (not new_waypoint):
                                                 drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
                                                 save_datalog()
@@ -402,6 +375,7 @@ try:
                                                 if waypoint_num > 3:
                                                     waypoint_num = 0   # start over from beginning of waypoints
                                                 new_waypoint = True
+                                                turn = True
                         if turn:
                                 print('Starting rotation')
                                 heading = 999  # initialize
