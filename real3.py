@@ -22,7 +22,8 @@ sys.path.append('../')
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
-waypoint_file = 'waypoints_office.csv'
+#waypoint_file = 'waypoints_office.csv'
+waypoint_file = 'waypoints_home.csv'
 #waypoint_file = 'waypoints-wework.csv'
 record_file = 'waypoints_recorded.csv'
 datalog_file = 'datalog.csv'
@@ -33,8 +34,8 @@ x = 0
 y = 0
 hedgehog_x = 0
 hedgehog_y = 0
-use_marvelmind = False
-testmode = True
+use_marvelmind = True
+testmode = False
 recordmode = False
 datalog = True
 hit_radius = 0.1
