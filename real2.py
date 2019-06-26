@@ -191,8 +191,12 @@ def get_heading(data):  # this is essentially magic ;-)
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
     heading = rpy_rad[2]
     if use_marvelmind and (not testmode):
-        print("Realsense heading", round(heading,2), "Correction", round(angle,2), "Corrected heading:", round(heading-angle,2)) 
+        print("Realsense heading", round(heading,2), "Correction", round(angle,2), "Corrected heading:", round(heading-angle,2))
         heading = heading - angle  # Right now rotation is 0, but you can change it to pi if you need to reverse the Realsense coordinate system to match Marvelmind        
+        if heading < -math.pi:
+                heading += 2*math.pi
+        elif heading > math.pi:
+                heading -=2*math.pi
     return heading
 
 def drive(speed, angle):
@@ -251,7 +255,7 @@ def save_datalog():
         with open(datalog_file, 'a') as csvfile:  # append to file
                 recordwriter = csv.writer(csvfile, delimiter=',',quotechar='|', quoting=csv.QUOTE_MINIMAL)
                 if use_marvelmind:
-                        recordwriter.writerow([round(hedgehog_x,2), round(hedgehog_y,2), round(marvel[0],2), round(marvel[1],2),round(x,2), round(y,2)])
+                        recordwriter.writerow([round(hedgehog_x,2), round(hedgehog_y,2), round(marvel[0],2), round(marvel[1],2),round(real_x,2), round(real_y,2)])
                 else:                        
                         recordwriter.writerow([round(x,2), round(y,2)])
 
@@ -356,6 +360,7 @@ try:
                                         position_snapshot() # get current positions
                                         finish = np.array([real_x, real_y, marvel_x, marvel_y])
                                         transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
+                                        start = finish
                                         last_calibration = range
 				desired_angle = (math.pi/2)-math.atan2(delta_y,delta_x)  
 				if desired_angle > math.pi:
@@ -370,7 +375,6 @@ try:
 					turn_angle = 2*math.pi + turn_angle
 				if use_marvelmind:
 				    get_position()
-#				    print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2), "Fake X:", round(x,2), "Y:", round(y,2))
 				print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
 				if new_waypoint:
 					rotate(desired_angle)
