@@ -20,18 +20,6 @@ sys.path.append('../')
 #pid.sample_time = 0.1  # update every 0.1 seconds
 
 
-# these are the affine transformation variables
-translation_x = 0
-translation_y = 0
-rotation = 0
-scale_x = 0
-scale_y = 0
-real_x = 0
-real_y = 0
-marvel_x = 0
-marvel_y = 0
-translated = np.array([2.0,2.0]) # just dimension this for later use
-
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
 #waypoint_file = 'waypoints_test.csv'
@@ -203,7 +191,8 @@ def get_heading(data):  # this is essentially magic ;-)
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
     heading = rpy_rad[2]
     if use_marvelmind and (not testmode):
-            heading = heading - angle  # Right now rotation is 0, but you can change it to pi if you need to reverse the Realsense coordinate system to match Marvelmind              
+        print("Realsense heading", round(heading,2), "Correction", round(angle,2), "Corrected heading:", round(heading-angle,2)) 
+        heading = heading - angle  # Right now rotation is 0, but you can change it to pi if you need to reverse the Realsense coordinate system to match Marvelmind        
     return heading
 
 def drive(speed, angle):
@@ -237,19 +226,18 @@ def position_snapshot():
 
 
 def calibrate_realsense(start, finish):
-	marvelmind_a = start[2:4]
-	marvelmind_b = finish[2:4]
-	marvelmind_diff = marvelmind_b - marvelmind_a
-	realsense_a = start[0:2]
-	realsense_b = finish[0:2]
-	realsense_diff = realsense_b - realsense_a
-#        marvelmind_dist = mag(marvelmind_diff)
-#        realsense_dist = mag(realsense_diff)
-	offset = realsense_a - marvelmind_a
-	angle = angle_between(marvelmind_diff, realsense_diff)
-	def rs_to_mm(rs):
+        marvelmind_a = start[2:4]
+        marvelmind_b = finish[2:4]
+        marvelmind_diff = marvelmind_b - marvelmind_a
+        realsense_a = start[0:2]
+        realsense_b = finish[0:2]
+        realsense_diff = realsense_b - realsense_a
+        offset = realsense_a - marvelmind_a
+        angle = angle_between(marvelmind_diff, realsense_diff)
+        def rs_to_mm(rs):
                 return rotation_matrix(angle) @ (rs - realsense_a) + marvelmind_a
-	return rs_to_mm, angle
+        print ("Initial calibration angle:", angle)
+        return rs_to_mm, angle
 
 def mag(v): return np.sqrt(v.dot(v))
 def unit(v): return v / mag(v)
@@ -258,24 +246,6 @@ def rotation_matrix(theta):
     c = np.cos(theta)
     s = np.sin(theta)
     return np.array([[c, -s], [s, c]])
-
-def affine_transformation(original):
-	# first do scaling
-	temp = np.array([2.0,2.0])
-#        print("Original X", original[0], "Y", original[1])
-#        print("Scale X", scale_x)
-	scale1 = original[0] * scale_x
-	scale2 = original[1] * scale_y
-	# then do translation
-	trans1 = scale1 + translation_x
-	trans2 = scale2 + translation_y
-	# then do rotation around origin(the equation of rotation is x′=x*cos(θ)−y*sin(θ) and y′=x*sin(θ)+y*cos(θ))
-	rotate1 = trans1*math.cos(rotation) - trans2*math.sin(rotation)
-	rotate2 = trans1*math.sin(rotation) + trans2*math.cos(rotation)
-	temp[0] = rotate1
-	temp[1] = rotate2
-#        print ("Scaled", round(scale1, 2), round(scale2,2), "Translated", round(trans1,2), round(trans2,2), "Rotated:", round(rotate1,2), round(rotate2,2))       
-	return temp
 
 def save_datalog():
         with open(datalog_file, 'a') as csvfile:  # append to file
@@ -288,16 +258,16 @@ def save_datalog():
 # main loop
 
 if use_marvelmind: # first, calibrate Realsense by traveling forward for one meter
-	print("Pausing to let readings settle")
-	marvel=np.array([0,0])
-	time.sleep(5)  # pause 10 seconds to let marvelmind readings settle
-	position_snapshot() # get current positions
-	start = np.array([real_x, real_y, marvel_x, marvel_y])
-	speed = 2000
-	distance = 1000
-	rc.SpeedDistanceM1M2(address,speed-steering_nudge,distance*tickdistanceL,speed+steering_nudge,distance*tickdistanceR,1)  # go forward 1m at speed 2000
-	buffers = (0,0,0)
-	while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+        print("Pausing to let readings settle")
+        marvel=np.array([0,0])
+        time.sleep(5)  # pause 10 seconds to let marvelmind readings settle
+        position_snapshot() # get current positions
+        start = np.array([real_x, real_y, marvel_x, marvel_y])
+        speed = 2000
+        distance = 1000
+        rc.SpeedDistanceM1M2(address,speed-steering_nudge,distance*tickdistanceL,speed+steering_nudge,distance*tickdistanceR,1)  # go forward 1m at speed 2000
+        buffers = (0,0,0)
+        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
                 buffers = rc.ReadBuffers(address)
                 frames = pipe.wait_for_frames()
                 pose = frames.get_pose_frame()
@@ -309,13 +279,12 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
                                 get_position()
                         save_datalog()
                 time.sleep(0.1)
-	print("Pausing to let readings settle")
-	time.sleep(5)  # pause 10 seconds to let marvelmind readings settle                
-	position_snapshot() # get current positions
-	finish = np.array([real_x, real_y, marvel_x, marvel_y])
-	transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
-
-
+        print("Pausing to let readings settle")
+        time.sleep(5)  # pause 10 seconds to let marvelmind readings settle                
+        position_snapshot() # get current positions
+        finish = np.array([real_x, real_y, marvel_x, marvel_y])
+        transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
+        start = np.array([real_x, real_y, marvel_x, marvel_y])  # make the new start the old finish
 
 
 try:
@@ -379,6 +348,15 @@ try:
 				delta_y = waypoint[waypoint_num][1] - y
 #                                print ("Delta X: ", round(delta_x,2), "Y: ", round(delta_y,2))
 				range = math.sqrt(delta_y**2 + delta_x**2)
+				if last_calibration == 0:
+                                        last_calibration = range # just set this the first time, when it's 0
+				if range < last_calibration - 3:  # recalibrate every 3 m
+                                        print("Pausing to recalibrate")
+                                        time.sleep(3) # pause to let readings settle
+                                        position_snapshot() # get current positions
+                                        finish = np.array([real_x, real_y, marvel_x, marvel_y])
+                                        transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
+                                        last_calibration = range
 				desired_angle = (math.pi/2)-math.atan2(delta_y,delta_x)  
 				if desired_angle > math.pi:
 					desired_angle = -1 * (2*math.pi-desired_angle) # turning counterclockwise is negative
