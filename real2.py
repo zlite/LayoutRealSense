@@ -34,8 +34,8 @@ translated = np.array([2.0,2.0]) # just dimension this for later use
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
-waypoint_file = 'waypoints_test.csv'
-#waypoint_file = 'waypoints_home.csv'
+#waypoint_file = 'waypoints_test.csv'
+waypoint_file = 'waypoints_office.csv'
 #waypoint_file = 'waypoints-wework.csv'
 record_file = 'waypoints_recorded.csv'
 datalog_file = 'datalog.csv'
@@ -44,11 +44,10 @@ waypoints = 0
 waypoint=[[0 for j in range(2)] for i in range(1000)]  # dimension an array up to 1,000 waypoints
 x = 0
 y = 0
-use_marvelmind = True
 hedgehog_x = 0
 hedgehog_y = 0
+use_marvelmind = True
 testmode = False
-position_testmode = False
 recordmode = False
 datalog = True
 hedgehog_id = 6
@@ -56,6 +55,7 @@ cruise_speed = 25
 steering_nudge = 200 # speed compensation for left/right imbalance when going straight in calibration
 old_x = 0
 old_y = 0
+last_calibration = 0
 if use_marvelmind:
 	new_waypoint = True
 else:
@@ -202,8 +202,8 @@ def get_heading(data):  # this is essentially magic ;-)
     H_aeroRef_aeroBody = H_aeroRef_T265Ref.dot( H_T265Ref_T265body.dot( H_T265body_aeroBody ))
     rpy_rad = np.array( tf.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz') )
     heading = rpy_rad[2]
-    if use_marvelmind:
-	    heading = heading - rotation  # reflects the fact that the RealSense and Marvelmind coordinate systems have opposite directions
+    if use_marvelmind and (not testmode):
+            heading = heading - angle  # Right now rotation is 0, but you can change it to pi if you need to reverse the Realsense coordinate system to match Marvelmind              
     return heading
 
 def drive(speed, angle):
@@ -235,47 +235,6 @@ def position_snapshot():
 	marvel_x = hedgehog_x
 	marvel_y = hedgehog_y
 
-def calibrate_realsense2(start, finish):
-	global scale_x, scale_y, translation_x, translation_y, rotation
-	real_x1 = start[0]  # just spelling it all out for clarity
-	real_y1 = start[1]
-	marvel_x1 = start[2]
-	marvel_y1 = start[3]
-	real_x2 = finish[0]
-	real_y2 = finish[1]
-	marvel_x2 = finish[2]
-	marvel_y2 = finish[3]
-	mdelta_x = marvel_x2 - marvel_x1
-	mdelta_y = marvel_y2 - marvel_y1
-	heading_marvel = math.atan2(mdelta_y,mdelta_x)  #  get marvelmind heading
-	rdelta_x = real_x2 - real_x1
-	rdelta_y = real_y2 - real_y1
-	heading_real = math.atan2(rdelta_y,rdelta_x)  #  get realsense heading
-	print("Marvelmind heading:", round(heading_marvel,2), "Realsense heading: ", round(heading_real,2))
-	print("Marvelmind initial position:", round(marvel_x1,2), round(marvel_y1,2),"Realsense initial position ", round(real_x1,2), round(real_y1,2))
-	vector_r = np.array([real_x2-real_x1,real_y2-real_y1]) # realsense travel vector
-	vector_m = np.array([marvel_x2-marvel_x1, marvel_y2-marvel_y1]) # marvelmind travel vector
-	length_r = math.sqrt((real_x2-real_x1)**2 + (real_y2-real_y1)**2)  # length of vector
-	length_m = math.sqrt((marvel_x2-marvel_x1)**2 + (marvel_y2-marvel_y1)**2)
-	translation_x = marvel_x1-real_x1  # difference between starting positions of the two sensors
-	translation_y = marvel_y1-real_y1
-	dot_product = np.dot(vector_r,vector_m)  # multiply the vector matrices
-#       rotation = math.acos(dot_product/(length_r*length_m))    # formula is cos(angle) = (vector1*vector2)/(length1*length2), so we solve for angle
-	rotation = heading_marvel-heading_real
-# now rotate and translate and find the scaling facotrs for x and y
-	real_x1 = real_x1 + translation_x
-	real_y1 = real_y1 + translation_y
-	real_x2 = real_x2 + translation_x
-	real_y2 = real_y2 + translation_y
-	real_x1 = real_x1*math.cos(rotation) - real_y1*math.sin(rotation)
-	real_y1 = real_x1*math.sin(rotation) + real_y1*math.cos(rotation)
-	real_x2 = real_x2*math.cos(rotation) - real_y2*math.sin(rotation)
-	real_y2 = real_x2*math.sin(rotation) + real_y2*math.cos(rotation)
-	rdelta_x = real_x2 - real_x1
-	rdelta_y = real_y2 - real_y1
-	scale_x = mdelta_x/rdelta_x  # find scaling factors for each axis
-	scale_y = mdelta_y/rdelta_y
-	print("Scale X:", round(scale_x,3), "Y:", round(scale_y,3),"Translation X ", round(translation_x,2), "Y", round(translation_y,2), "Rotation", round(rotation,2))
 
 def calibrate_realsense(start, finish):
 	marvelmind_a = start[2:4]
@@ -289,9 +248,8 @@ def calibrate_realsense(start, finish):
 	offset = realsense_a - marvelmind_a
 	angle = angle_between(marvelmind_diff, realsense_diff)
 	def rs_to_mm(rs):
-	    return (rs - realsense_a)@rotation_matrix(angle) + marvelmind_a
-	return rs_to_mm
-
+                return rotation_matrix(angle) @ (rs - realsense_a) + marvelmind_a
+	return rs_to_mm, angle
 
 def mag(v): return np.sqrt(v.dot(v))
 def unit(v): return v / mag(v)
@@ -327,7 +285,6 @@ def save_datalog():
                 else:                        
                         recordwriter.writerow([round(x,2), round(y,2)])
 
-
 # main loop
 
 if use_marvelmind: # first, calibrate Realsense by traveling forward for one meter
@@ -356,14 +313,14 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
 	time.sleep(5)  # pause 10 seconds to let marvelmind readings settle                
 	position_snapshot() # get current positions
 	finish = np.array([real_x, real_y, marvel_x, marvel_y])
-	transform = calibrate_realsense(start, finish)  # save affine transformation matrix elements
+	transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
 
 
 
 
 try:
 	while True:
-		if (recordmode): # record waypoints
+		if recordmode: # record waypoints
 			temp = raw_input("Hit l, r, f, s or w to go left, right, forward, stop or save waypoint")
 			if (temp == "l"):
 				print("Going left")
@@ -398,62 +355,23 @@ try:
 				waypoint_num = waypoint_num + 1
 
 
-		if testmode:   # in test mode just do a box
-			while True:
-				rc.ResetEncoders(address)
-				buffers = (0,0,0)
-#				displayspeed()
-				time.sleep(2)
-				if (waypoints == 0): # straight
-					rc.SpeedDistanceM1(address,2000,1000*tickdistanceL,1)
-					rc.SpeedDistanceM2(address,2000,1000*tickdistanceR,1)
-				if (waypoints == 1): # turn
-					rc.SpeedDistanceM1(address,-2000,200*tickdistanceL,1)
-					rc.SpeedDistanceM2(address,2000,200*tickdistanceR,1)
-				buffers = (0,0,0)
-				while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
-#				    displayspeed()
-                                        if position_testmode:  # this just prints relative positions while you move the rover around
-                                                position_snapshot()  # this will return real and mavel x's and y's
-                                                real = np.array([real_x, real_y])
-                                                marvel = transform(real)
-                                                save_datalog()
-#                                                print("Fake Marvel", marvel)                                                  
-                                        ##                        original = np.array([real_x,real_y])  # turn it into a vector
-                                        ###                        print("Original", original)
-                                        ##                        translated = affine_transformation(original)  # run all this through the affine transformation to change to Marvelmind coordindate frame
-                                        ##                        real_x = translated[0] 
-                                        ##                        real_y = translated[1]
-                                                print("Marvelmind", round(marvel_x,2), round(marvel_y,2), "Fake Marvel", round(marvel[0],2), round(marvel[1],2), "Realsense", round(real_x,2), round(real_y,2))
-                                                time.sleep(0.1) # slow down the stream
-                                        buffers = rc.ReadBuffers(address)
-				print ("Next waypoint")
-				if (waypoints < 1):
-					waypoints = waypoints + 1
-				else:
-					waypoints = 0
-
-
-
-		if ((not testmode) and (not recordmode) and (not position_testmode)):     # This is regular waypoint mode
+		if not recordmode:     # This is regular waypoint mode
 			frames = pipe.wait_for_frames()
 			pose = frames.get_pose_frame()
 			if pose:
 				#            yaw = pose.QueryYaw()
 				data = pose.get_pose_data()
-				x = data.translation.x
-				y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
-				if use_marvelmind:
-					original = np.array([x,y])  # turn it into a vector
-					translated = np.array([x,y]) # just dimension this for later use
-					translated = affine_transformation(original)  # run alll this through the affine transformation to change to Marvelmind coordindate frame
- #                                       print("Affine transformation. Original:", original, "Translated:", translated)
-##					x = translated[0] 
-##					y = translated[1]
-					position_snapshot()  # this will return real and mavel x's and y's
-					real = np.array([real_x, real_y])
-					marvel = transform(real)
-				print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+				if use_marvelmind and (not testmode):
+                                        position_snapshot()  # this will return real and marvel x's and y's
+                                        real = np.array([real_x, real_y])
+                                        marvel = transform(real)
+                                        x = marvel[0]  # replaces realsense coordinate with fake marvelmind coordinates
+                                        y = marvel[1]
+                                        print("Waypoint Number", waypoint_num, "Marvel X:", round(marvel_x,2), "Y", round(marvel_y,2), "Fake X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+				else:
+                                        x = data.translation.x
+                                        y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                                        print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
 				heading = get_heading(data)
 				time.sleep(0.1) # don't flood the print buffer
 				#            print ("heading", round(heading,2))
@@ -474,7 +392,7 @@ try:
 					turn_angle = 2*math.pi + turn_angle
 				if use_marvelmind:
 				    get_position()
-				    print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2))
+#				    print ("Marvelmind position X: ", round(hedgehog_x,2), "Y: ", round(hedgehog_y,2), "Fake X:", round(x,2), "Y:", round(y,2))
 				print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
 				if new_waypoint:
 					rotate(desired_angle)
