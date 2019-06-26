@@ -51,6 +51,8 @@ else:
 	new_waypoint = False        
 steering_dir = -1  # +/- 1 for direction of robot motors
 steering_gain = 250
+turn = False
+
 # Declare RealSense pipeline, encapsulating the actual device and sensors
 pipe = rs.pipeline()
 H_aeroRef_T265Ref = np.array([[0,0,-1,0],[1,0,0,0],[0,-1,0,0],[0,0,0,1]])
@@ -340,66 +342,94 @@ try:
 
 
 		if not recordmode:     # This is regular waypoint mode
-			frames = pipe.wait_for_frames()
-			pose = frames.get_pose_frame()
-			if pose:
-				#            yaw = pose.QueryYaw()
-				data = pose.get_pose_data()
-				if use_marvelmind and (not testmode):
-                                        position_snapshot()  # this will return real and marvel x's and y's
-                                        real = np.array([real_x, real_y])
-                                        marvel = transform(real)
-                                        x = marvel[0]  # replaces realsense coordinate with fake marvelmind coordinates
-                                        y = marvel[1]
-                                        print("Waypoint Number", waypoint_num, "Marvel X:", round(marvel_x,2), "Y", "Real X:", round(real_x,2), "Y", round(real_y, 2),round(marvel_y,2), "Fake X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
-				else:
-                                        x = data.translation.x
-                                        y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
-                                        print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
-				heading = get_heading(data)
-#				time.sleep(0.1) # don't flood the print buffer
-				#            print ("heading", round(heading,2))
-				delta_x = waypoint[waypoint_num][0] - x  # calculate distance to target
-				delta_y = waypoint[waypoint_num][1] - y
-#                                print ("Delta X: ", round(delta_x,2), "Y: ", round(delta_y,2))
-				range = math.sqrt(delta_y**2 + delta_x**2)
-				if last_calibration == 0:
-                                        last_calibration = range # just set this the first time, when it's 0
-				if range < last_calibration - 3:  # recalibrate every 3 m
-                                        print("Pausing to recalibrate")
-                                        time.sleep(3) # pause to let readings settle
-                                        position_snapshot() # get current positions
-                                        finish = np.array([real_x, real_y, marvel_x, marvel_y])
-                                        transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
-                                        start = finish
-                                        last_calibration = range
-				desired_angle = (math.pi/2)-math.atan2(delta_y,delta_x)  
-				if desired_angle > math.pi:
-					desired_angle = -1 * (2*math.pi-desired_angle) # turning counterclockwise is negative
-				turn_angle = abs(desired_angle-heading) # get difference between desired angle and current angle
-				raw_turn_angle = turn_angle   # this is just for debugging
-				if desired_angle < heading: # these next lines correct for all the edge cases and singularities
-					turn_angle = -1*turn_angle
-				if turn_angle > math.pi:
-					turn_angle = -2*math.pi + turn_angle
-				if turn_angle < -math.pi:
-					turn_angle = 2*math.pi + turn_angle
-				if use_marvelmind:
-				    get_position()
-				print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
-				if new_waypoint:
-					rotate(desired_angle)
-					new_waypoint = False
-					rc.ResetEncoders(address)
-				if (range > hit_radius) and (not new_waypoint):
-					drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
-					save_datalog()
-				if (range <= hit_radius) and (not new_waypoint):
-					print ("Hit waypoint")
-					waypoint_num = waypoint_num + 1
-					if waypoint_num > 3:
-					    waypoint_num = 0   # start over from beginning of waypoints
-					new_waypoint = True
+                        if not turn:
+                                frames = pipe.wait_for_frames()
+                                pose = frames.get_pose_frame()
+                                if pose:
+                                        #            yaw = pose.QueryYaw()
+                                        data = pose.get_pose_data()
+                                        if use_marvelmind and (not testmode):
+                                                position_snapshot()  # this will return real and marvel x's and y's
+                                                real = np.array([real_x, real_y])
+                                                marvel = transform(real)
+                                                x = marvel[0]  # replaces realsense coordinate with fake marvelmind coordinates
+                                                y = marvel[1]
+                                                print("Waypoint Number", waypoint_num, "Marvel X:", round(marvel_x,2), "Y", "Real X:", round(real_x,2), "Y", round(real_y, 2),round(marvel_y,2), "Fake X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+                                        else:
+                                                x = data.translation.x
+                                                y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
+                                                print("Waypoint Number", waypoint_num, "Rover X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+                                        heading = get_heading(data)
+        #				time.sleep(0.1) # don't flood the print buffer
+                                        #            print ("heading", round(heading,2))
+                                        delta_x = waypoint[waypoint_num][0] - x  # calculate distance to target
+                                        delta_y = waypoint[waypoint_num][1] - y
+        #                                print ("Delta X: ", round(delta_x,2), "Y: ", round(delta_y,2))
+                                        range = math.sqrt(delta_y**2 + delta_x**2)
+                                        if last_calibration == 0:
+                                                last_calibration = range # just set this the first time, when it's 0
+                                        if range < last_calibration - 3:  # recalibrate every 3 m
+                                                print("Pausing to recalibrate")
+                                                time.sleep(3) # pause to let readings settle
+                                                position_snapshot() # get current positions
+                                                finish = np.array([real_x, real_y, marvel_x, marvel_y])
+                                                transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
+                                                start = finish
+                                                last_calibration = range
+                                        desired_angle = (math.pi/2)-math.atan2(delta_y,delta_x)  
+                                        if desired_angle > math.pi:
+                                                desired_angle = -1 * (2*math.pi-desired_angle) # turning counterclockwise is negative
+                                        turn_angle = abs(desired_angle-heading) # get difference between desired angle and current angle
+                                        raw_turn_angle = turn_angle   # this is just for debugging
+                                        if desired_angle < heading: # these next lines correct for all the edge cases and singularities
+                                                turn_angle = -1*turn_angle
+                                        if turn_angle > math.pi:
+                                                turn_angle = -2*math.pi + turn_angle
+                                        if turn_angle < -math.pi:
+                                                turn_angle = 2*math.pi + turn_angle
+                                        if use_marvelmind:
+                                            get_position()
+                                        print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
+                                        if new_waypoint:
+#                                                rotate(desired_angle)
+                                                turn = True
+                                        if (range > hit_radius) and (not new_waypoint):
+                                                drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
+                                                save_datalog()
+                                        if (range <= hit_radius) and (not new_waypoint):
+                                                print ("Hit waypoint")
+                                                waypoint_num = waypoint_num + 1
+                                                if waypoint_num > 3:
+                                                    waypoint_num = 0   # start over from beginning of waypoints
+                                                new_waypoint = True
+                        if turn:
+                                print('Starting rotation')
+                                heading = 999  # initialize
+                                while (heading < desired_angle - 0.02) or (heading > desired_angle + 0.02): # rotate until you're within a degree (0.02 radians) of target
+                                        frames = pipe.wait_for_frames()
+                                        pose = frames.get_pose_frame()
+                                        if pose:
+                                                data = pose.get_pose_data()
+                                                heading = get_heading(data)
+                                                delta_angle = heading-desired_angle  # get the difference between the current and intended angle
+                                                direction = dir(heading, desired_angle)
+                                                print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle,3), "Direction: ", direction)
+                                                rc.ResetEncoders(address)
+                                        if (heading < desired_angle - 0.25) or (heading > desired_angle + 0.25):  # go fast if you're more than .25 radians away
+                                                speed = 2500  # go fast
+                                        else:
+                                                speed = 1500   # go slow
+                                        rc.SpeedDistanceM1(address,-1*direction*speed,1*tickdistanceL,1) # rotate a few degrees
+                                        rc.SpeedDistanceM2(address,direction*speed,1*tickdistanceR,1)
+                                        buffers = (0,0,0)
+                                        while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
+                         #                   displayspeed()
+                                                buffers = rc.ReadBuffers(address)
+                                new_waypoint = False
+                                rc.ResetEncoders(address)
+                                turn = False
+
+
 
 
 except KeyboardInterrupt:
