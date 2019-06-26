@@ -279,7 +279,6 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
         transform, angle = calibrate_realsense(start, finish)  # save affine transformation matrix elements
         start = np.array([real_x, real_y, marvel_x, marvel_y])  # make the new start the old finish
 
-
 try:
 	while True:
 		if recordmode: # record waypoints
@@ -379,6 +378,17 @@ try:
                         if turn:
                                 print('Starting rotation')
                                 heading = 999  # initialize
+                                position_snapshot()  # this will return real and marvel x's and y's
+                                real = np.array([real_x, real_y])
+                                marvel = transform(real)
+                                x = marvel[0]  # replaces realsense coordinate with fake marvelmind coordinates
+                                y = marvel[1]
+                                delta_x = waypoint[waypoint_num][0] - x  # calculate distance to target
+                                delta_y = waypoint[waypoint_num][1] - y
+                                desired_angle = (math.pi/2)-math.atan2(delta_y,delta_x)  
+                                if desired_angle > math.pi:
+                                        desired_angle = -1 * (2*math.pi-desired_angle) # turning counterclockwise is negative
+
                                 while (heading < desired_angle - 0.02) or (heading > desired_angle + 0.02): # rotate until you're within a degree (0.02 radians) of target
                                         frames = pipe.wait_for_frames()
                                         pose = frames.get_pose_frame()
