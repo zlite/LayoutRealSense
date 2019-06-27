@@ -23,7 +23,7 @@ sys.path.append('../')
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
 #waypoint_file = 'waypoints_office.csv'
-waypoint_file = 'waypoints_home.csv'
+waypoint_file = 'waypoints_wework.csv'
 #waypoint_file = 'waypoints-wework.csv'
 record_file = 'waypoints_recorded.csv'
 datalog_file = 'datalog.csv'
@@ -40,7 +40,7 @@ recordmode = False
 datalog = True
 hit_radius = 0.1
 hedgehog_id = 6
-cruise_speed = 25
+cruise_speed = 45
 steering_nudge = 200 # speed compensation for left/right imbalance when going straight in calibration
 old_x = 0
 old_y = 0
@@ -257,7 +257,7 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
                 position_snapshot() # get current positions
                 start = np.array([real_x, real_y, marvel_x, marvel_y])
         speed = 2000
-        distance = 1000
+        distance = 3000
         rc.SpeedDistanceM1M2(address,speed-steering_nudge,distance*tickdistanceL,speed+steering_nudge,distance*tickdistanceR,1)  # go forward 1m at speed 2000
         buffers = (0,0,0)
         while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
@@ -343,8 +343,10 @@ try:
                                         range = math.sqrt(delta_y**2 + delta_x**2)
                                         if last_calibration == 0:
                                                 last_calibration = range # just set this the first time, when it's 0
-                                        if range < last_calibration - 3:  # recalibrate every 3 m
+                                        if (range < (last_calibration - 3)) and (range > 1):  # recalibrate every 3 m
                                                 print("Pausing to recalibrate")
+                                                rc.ForwardM1(address,0)  # kill motors
+                                                rc.ForwardM2(address,0)
                                                 time.sleep(3) # pause to let readings settle
                                                 position_snapshot() # get current positions
                                                 finish = np.array([real_x, real_y, marvel_x, marvel_y])
@@ -374,6 +376,7 @@ try:
                                                 if waypoint_num > 3:
                                                     waypoint_num = 0   # start over from beginning of waypoints
                                                 new_waypoint = True
+                                                last_calibration = 0
                                                 turn = True
                         if turn:
                                 print('Starting rotation')
