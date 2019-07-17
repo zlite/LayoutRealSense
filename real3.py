@@ -22,8 +22,8 @@ sys.path.append('../')
 
 tickdistanceL = 10 #  number of left encoder ticks per mm traveled
 tickdistanceR = 10 #  number of right encoder ticks per mm traveled
-#waypoint_file = 'waypoints_office.csv'
-waypoint_file = 'waypoints_wework.csv'
+waypoint_file = 'waypoints_office.csv'
+#waypoint_file = 'waypoints_wework.csv'
 #waypoint_file = 'waypoints-wework.csv'
 record_file = 'waypoints_recorded.csv'
 datalog_file = 'datalog.csv'
@@ -40,7 +40,7 @@ recordmode = False
 datalog = True
 hit_radius = 0.1
 hedgehog_id = 6
-cruise_speed = 45
+cruise_speed = 35
 steering_nudge = 200 # speed compensation for left/right imbalance when going straight in calibration
 old_x = 0
 old_y = 0
@@ -178,7 +178,7 @@ def get_heading(data):  # this is essentially magic ;-)
                 heading += 2*math.pi
         elif heading > math.pi:
                 heading -=2*math.pi
-        print("Realsense heading", round(heading,2), "Correction", round(angle,2), "Corrected heading:", round(heading-angle,2))
+#        print("Realsense heading", round(heading,2), "Correction", round(angle,2), "Corrected heading:", round(heading-angle,2))
     return heading
 
 def drive(speed, angle):
@@ -257,7 +257,8 @@ if use_marvelmind: # first, calibrate Realsense by traveling forward for one met
                 position_snapshot() # get current positions
                 start = np.array([real_x, real_y, marvel_x, marvel_y])
         speed = 2000
-        distance = 3000
+        distance = 2000
+        print ("Driving forward for 2m")
         rc.SpeedDistanceM1M2(address,speed-steering_nudge,distance*tickdistanceL,speed+steering_nudge,distance*tickdistanceR,1)  # go forward 1m at speed 2000
         buffers = (0,0,0)
         while(buffers[1]!=0x80 and buffers[2]!=0x80):   #Loop until distance command has completed
@@ -329,7 +330,7 @@ try:
                                                 marvel = transform(real)
                                                 x = marvel[0]  # replaces realsense coordinate with fake marvelmind coordinates
                                                 y = marvel[1]
-                                                print("Waypoint Number", waypoint_num, "Marvel X:", round(marvel_x,2), "Y", "Real X:", round(real_x,2), "Y", round(real_y, 2),round(marvel_y,2), "Fake X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
+#                                                print("Waypoint Number", waypoint_num, "Marvel X:", round(marvel_x,2), "Y", "Real X:", round(real_x,2), "Y", round(real_y, 2),round(marvel_y,2), "Fake X", round(x,2),"Y", round(y,2)," Target X", round(waypoint[waypoint_num][0],2),"Y", round(waypoint[waypoint_num][1],2))
                                         else:
                                                 x = data.translation.x
                                                 y = -1.000 * data.translation.z # don't ask me why, but in "VR space", y is z and it's reversed
@@ -366,7 +367,7 @@ try:
                                                 turn_angle = 2*math.pi + turn_angle
                                         if use_marvelmind:
                                             get_position()
-                                        print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
+#                                        print ("Waypoint angle ", round(desired_angle,2), "Current heading ", round(heading,2), "Turn angle ", round(turn_angle,2), "Range ", round(range,2))
                                         if (range > hit_radius) and (not new_waypoint):
                                                 drive (cruise_speed,turn_angle*(180/math.pi)) # Steer towards waypoint, in degrees
                                                 save_datalog()
@@ -400,7 +401,7 @@ try:
                                                 heading = get_heading(data)
                                                 delta_angle = heading-desired_angle  # get the difference between the current and intended angle
                                                 direction = dir(heading, desired_angle)
-                                                print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle,3), "Direction: ", direction)
+ #                                               print ("Current heading:", round(heading,3), "Desired angle:", round(desired_angle,3), "Direction: ", direction)
                                                 rc.ResetEncoders(address)
                                         if (heading < desired_angle - 0.25) or (heading > desired_angle + 0.25):  # go fast if you're more than .25 radians away
                                                 speed = 2500  # go fast
