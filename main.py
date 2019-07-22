@@ -4,6 +4,7 @@ import json
 from collections import namedtuple, deque
 import numpy as np
 from numpy.linalg import norm
+from transformations import affine_matrix_from_points
 
 from util import normalize_angle, NumpyEncoder
 
@@ -27,15 +28,42 @@ class Logger:
 
 class Estimator:
     def __init__(self):
-        self.buffer = deque(maxlen = 200)
+        self.max_points = 900
+        self.marvelmind_buffer = np.zeros((2, self.max_points))
+        self.realsense_buffer = np.zeros((2, self.max_points))
+        self.buffer_i = 0
+        self.npoints = 0
+        self.transform = None
+        self.angle = None
+        self.last_update_time = 0
+
+    def add_point(self, state):
+        self.realsense_buffer[:,self.buffer_i] = state.realsense_position
+        self.marvelmind_buffer[:,self.buffer_i] = state.marvelmind_position
+        self.buffer_i = (self.buffer_i + 1) % self.max_points
+        self.npoints += 1
+
+    def update_matrix(self, state):
+        buffer_len = min(self.max_points, self.npoints)
+        self.transform = affine_matrix_from_points(self.realsense_buffer[:,:buffer_len], self.marvelmind_buffer[:,:buffer_len], shear=False, scale=True)
+        self.angle = np.arctan2(self.transform[1,0], self.transform[0,0])
+
+        state.rs_to_mm_scale = norm(self.transform[:2, 0])
+        state.rs_to_mm_offset = self.transform[:2, 2]
+        state.rs_to_mm_angle = self.angle
+
+        self.last_update_time = state.time
 
     def update(self, state):
-        self.buffer.append(state.realsense_position)
+        self.add_point(state)
 
-        if len(self.buffer) >= 200:
-            # Fake, estimate is just taken from the simulator's real position
-            state.position = state.sim_position
-            state.heading = state.sim_heading
+        if state.time - self.last_update_time > 1.0:
+            self.update_matrix(state)
+            
+        if self.npoints >= 200:
+            hpos = self.transform @ np.append(state.realsense_position, 1)
+            state.position = hpos[:-1] / hpos[-1]
+            state.heading = normalize_angle(state.realsense_heading + self.angle)
         else:
             state.position = None
             state.heading = None
