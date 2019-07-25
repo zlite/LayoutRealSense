@@ -29,13 +29,13 @@ class RealSense:
         
         if pose:
             data = pose.get_pose_data()
-            x = data.translation.x
-            y = -1 * data.translation.z
+            y = -1 * data.translation.x
+            x = -1 * data.translation.z
 
         H_T265Ref_T265body = transformations.quaternion_matrix([data.rotation.w, data.rotation.x,data.rotation.y,data.rotation.z])
         H_aeroRef_aeroBody = H_aeroRef_T265Ref.dot( H_T265Ref_T265body.dot( H_T265body_aeroBody ))
         rpy_rad = np.array(transformations.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz'))
-        heading = rpy_rad[2]
+        heading = -rpy_rad[2]
 
         return np.array([x, y]), heading
 
@@ -70,11 +70,12 @@ class Motors:
         else:
             raise IOError("Roboclaw motor driver not found")
 
-        address = 0x80
-        version = self.rc.ReadVersion(address)
+        self.rc.Open()
+        self.address = 0x80
+        version = self.rc.ReadVersion(self.address)
 
         self.l_ticks_per_m = 10_000 #  number of left encoder ticks per m traveled
-        self.r_ticks_per_m = 10_000 #  number of right encoder ticks per m traveled
+        self.r_ticks_per_m = 11_000 #  number of right encoder ticks per m traveled
         self.track_width = 0.20 # width between the two tracks, in m
 
         self.last_setpoint = None
@@ -91,11 +92,14 @@ class Motors:
         angle: Clockwise angular rate in radians/s
         """
 
-        left_speed  = int((speed + self.track_width/2 * angle) * self.l_ticks_per_m)
-        right_speed = int((speed - self.track_width/2 * angle) * self.r_ticks_per_m)
+        max_angle = np.pi / 2
+        angle = max(-max_angle, min(angle, max_angle))
 
-        if last_setpoint != (left_speed, right_speed):
-            last_setpoint = (left_speed, right_speed)
+        left_speed  = int((speed - self.track_width/2 * angle) * self.l_ticks_per_m)
+        right_speed = int((speed + self.track_width/2 * angle) * self.r_ticks_per_m)
+
+        if self.last_setpoint != (left_speed, right_speed):
+            self.last_setpoint = (left_speed, right_speed)
             self.rc.SpeedM1M2(self.address, left_speed, right_speed)
 
     def stop(self):
@@ -104,15 +108,19 @@ class Motors:
         self.rc.ForwardM2(self.address, 0)
 
 class Robot:
-    def __init__(self, marvelmind_addr):
-        self.state = State()
+    def __init__(self, marvelmind_addr=6):
+        self.state = State(
+            time = 0.0,
+            drive_speed = 0.0,
+            drive_angle = 0.0,
+        )
         self.marvelmind = Marvelmind(marvelmind_addr)
         self.realsense = RealSense()
         self.motors = Motors()
 
     def start(self):
         self.realsense.start()
-        self.marvelmind.start()
+        self.start_time = time.time()
 
     def stop(self):
         self.motors.stop()
@@ -122,7 +130,13 @@ class Robot:
     def update(self):
         self.motors.drive(self.state.drive_speed, self.state.drive_angle)
 
-        self.state.time = time.time()
+        elapsed_time = (time.time() - self.start_time) - self.state.time
+        loop_time = 1./20
+
+        if loop_time > elapsed_time:
+            time.sleep(loop_time - elapsed_time)
+
+        self.state.time = time.time() - self.start_time
 
         self.state.marvelmind_position = self.marvelmind.read()
         self.state.realsense_position, self.state.realsense_heading = self.realsense.read()

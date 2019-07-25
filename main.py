@@ -10,8 +10,8 @@ from util import normalize_angle, NumpyEncoder
 
 Waypoint = namedtuple('Waypoint', ['position'])
 
-hit_radius = 0.1
-cruise_speed = 0.045
+hit_radius = 0.05
+cruise_speed = 0.2
 
 def load_waypoint_file(waypoint_file):
     with open(waypoint_file) as csv_file:

@@ -8,8 +8,8 @@ class SimRobot:
             drive_angle = 0
         )
         self.rs_scale = 0.85
-        self.position = self.initial_position = np.array([0.8, 1.4])
-        self.heading = self.initial_heading = 1.0
+        self.position = self.initial_position = np.array([3.94, -0.84])
+        self.heading = self.initial_heading = -1.57
 
         self.time = 0
 
@@ -25,7 +25,7 @@ class SimRobot:
         self.state.sim_position = self.position
         self.state.sim_heading = self.heading
 
-        self.state.marvelmind_position = self.position + np.random.normal(0,0.04,2)
+        self.state.marvelmind_position = self.position + np.random.normal(0,0.015,2)
 
         self.state.realsense_position = self.rs_scale * rotation_matrix(-self.initial_heading) @ (self.position - self.initial_position)
         self.state.realsense_heading  = normalize_angle(self.heading - self.initial_heading)
