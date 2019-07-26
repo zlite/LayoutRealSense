@@ -101,6 +101,13 @@ def drive_to_waypoint(state, waypoint):
         state.drive_angle = np.arctan(delta_heading) * 2
         yield
 
+def pause(state, t):
+    start_time = state.time
+    while state.time < start_time + t:
+        state.drive_speed = 0
+        state.drive_angle = 0
+        yield
+
 def drive_to_waypoints(state, waypoints, repeat):
     # Drive forward until estimator produces a position
     print("Starting calibration drive")
@@ -113,6 +120,8 @@ def drive_to_waypoints(state, waypoints, repeat):
         for i, waypoint in enumerate(waypoints):
             print(f"Going to waypoint {i + 1}: {waypoint.position}")
             yield from drive_to_waypoint(state, waypoint)
+            print(f"Pausing at waypoint {i + 1}: {waypoint.position}")
+            yield from pause(state, 2.0)
         if not repeat:
             break
 
