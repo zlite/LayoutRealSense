@@ -57,10 +57,10 @@ class Estimator:
     def update(self, state):
         self.add_point(state)
 
-        if state.time - self.last_update_time > 1.0:
+        if state.time - self.last_update_time > 1.0 and self.npoints > 20:
             self.update_matrix(state)
             
-        if self.npoints >= 200:
+        if self.npoints >= 120:
             hpos = self.transform @ np.append(state.realsense_position, 1)
             state.position = hpos[:-1] / hpos[-1]
             state.heading = normalize_angle(state.realsense_heading + self.angle)
@@ -89,14 +89,23 @@ def drive_to_waypoint(state, waypoint):
         delta = waypoint.position - state.position
         bearing = np.arctan2(delta[1], delta[0])
         delta_heading = normalize_angle(bearing - state.heading)
-        state.drive_speed = (cruise_speed if np.abs(delta_heading) < 0.02 else 0.0)
-        state.drive_angle = delta_heading
+
+        state.target_delta_heading = delta_heading
+        state.target_bearing = bearing
+
+        if np.abs(delta_heading) < np.pi/4:
+            state.drive_speed = cruise_speed
+        else:
+            state.drive_speed = 0
+
+        state.drive_angle = np.arctan(delta_heading) * 2
         yield
 
 def drive_to_waypoints(state, waypoints):
     # Drive forward until estimator produces a position
+    print("Starting calibration drive")
     while state.position is None:
-        state.drive_speed = cruise_speed / 2
+        state.drive_speed = cruise_speed
         state.drive_angle = 0
         yield
         
