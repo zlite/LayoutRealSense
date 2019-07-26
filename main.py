@@ -101,16 +101,20 @@ def drive_to_waypoint(state, waypoint):
         state.drive_angle = np.arctan(delta_heading) * 2
         yield
 
-def drive_to_waypoints(state, waypoints):
+def drive_to_waypoints(state, waypoints, repeat):
     # Drive forward until estimator produces a position
     print("Starting calibration drive")
     while state.position is None:
         state.drive_speed = cruise_speed
         state.drive_angle = 0
         yield
-        
-    for waypoint in waypoints:
-        yield from drive_to_waypoint(state, waypoint)
+    
+    while True:
+        for i, waypoint in enumerate(waypoints):
+            print(f"Going to waypoint {i + 1}: {waypoint.position}")
+            yield from drive_to_waypoint(state, waypoint)
+        if not repeat:
+            break
 
 def forward_rs(state, dist):
     rs_initial = state.realsense_position
@@ -187,6 +191,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sim", help="Use simulated robot", action="store_true")
     parser.add_argument("--waypoints", help="waypoints CSV filename")
+    parser.add_argument("--waypoints-repeat", help="waypoints CSV filename")
     parser.add_argument("--square")
     parser.add_argument("--datalog", help="output datalog csv filename")
     args = parser.parse_args()
@@ -198,9 +203,9 @@ if __name__ == "__main__":
         import hardware
         robot = hardware.Robot()
 
-    if args.waypoints:
-        waypoints = load_waypoint_file(args.waypoints)
-        behavior = drive_to_waypoints(robot.state, waypoints)
+    if args.waypoints or args.waypoints_repeat:
+        waypoints = load_waypoint_file(args.waypoints or args.waypoints_repeat)
+        behavior = drive_to_waypoints(robot.state, waypoints, bool(args.waypoints_repeat))
     elif args.square:
         behavior = square_test(robot.state)
     else:
