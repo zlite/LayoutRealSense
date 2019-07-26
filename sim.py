@@ -29,6 +29,8 @@ class SimRobot:
 
         self.state.realsense_position = self.rs_scale * rotation_matrix(-self.initial_heading) @ (self.position - self.initial_position)
         self.state.realsense_heading  = normalize_angle(self.heading - self.initial_heading)
+        self.state.rs_tracker_confidence = 2.0
+        self.state.rs_mapper_confidence = 2.0
 
     def start(self):
         pass

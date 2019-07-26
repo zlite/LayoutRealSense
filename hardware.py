@@ -27,17 +27,19 @@ class RealSense:
         frames = self.pipe.wait_for_frames()
         pose = frames.get_pose_frame()
         
-        if pose:
-            data = pose.get_pose_data()
-            y = -1 * data.translation.x
-            x = -1 * data.translation.z
+        if not pose:
+            return None
+
+        data = pose.get_pose_data()
+        y = -1 * data.translation.x
+        x = -1 * data.translation.z
 
         H_T265Ref_T265body = transformations.quaternion_matrix([data.rotation.w, data.rotation.x,data.rotation.y,data.rotation.z])
         H_aeroRef_aeroBody = H_aeroRef_T265Ref.dot( H_T265Ref_T265body.dot( H_T265body_aeroBody ))
         rpy_rad = np.array(transformations.euler_from_matrix(H_aeroRef_aeroBody, 'rxyz'))
         heading = -rpy_rad[2]
 
-        return np.array([x, y]), heading
+        return np.array([x, y]), heading, data.tracker_confidence, data.mapper_confidence
 
 
 marvelmind_vid = 1155   # VID of Marvelmind device
@@ -139,4 +141,7 @@ class Robot:
         self.state.time = time.time() - self.start_time
 
         self.state.marvelmind_position = self.marvelmind.read()
-        self.state.realsense_position, self.state.realsense_heading = self.realsense.read()
+        (self.state.realsense_position,
+         self.state.realsense_heading,
+         self.state.rs_tracker_confidence,
+         self.state.rs_mapper_confidence) = self.realsense.read()
