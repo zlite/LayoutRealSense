@@ -112,11 +112,82 @@ def drive_to_waypoints(state, waypoints):
     for waypoint in waypoints:
         yield from drive_to_waypoint(state, waypoint)
 
+def forward_rs(state, dist):
+    rs_initial = state.realsense_position
+    while norm(rs_initial - state.realsense_position) < dist:
+        state.drive_speed = cruise_speed
+        state.drive_angle = 0
+        yield
+
+def turn_rs(state, angle):
+    h_initial = state.realsense_heading
+    while np.abs(normalize_angle(h_initial - state.realsense_heading)) < angle:
+        state.drive_speed = 0
+        state.drive_angle = np.pi / 2
+        yield
+
+def square_test(state):
+    for i in range(16):
+        print("Forward")
+        yield from forward_rs(state, 1)
+        print("Turn")
+        yield from turn_rs(state, np.pi / 2)
+
+def monitor(state):
+    import curses, time
+    try:
+        scr = curses.initscr()
+        curses.cbreak()
+        curses.noecho()
+        scr.keypad(1)
+        scr.nodelay(True)
+
+        while True:
+            key = None
+            while True:
+                try:
+                    key = scr.getkey()
+                except curses.error:
+                    break
+            
+            scr.addstr(0, 0, "Marvelmind: "
+                + f"x:{state.marvelmind_position[0]:+2.3f} "
+                + f"y:{state.marvelmind_position[1]:+2.3f} "
+            )
+            scr.addstr(1, 0, "Realsense:  "
+                + f"x:{state.realsense_position[0]:+2.3f} "
+                + f"y:{state.realsense_position[1]:+2.3f} "
+                + f"a:{state.realsense_heading:+1.3f} "
+                + f"tracker:{state.rs_tracker_confidence:+1.3f} "
+                + f"mapper:{state.rs_mapper_confidence:+1.3f} "
+            )
+            if state.position is not None:
+                scr.addstr(2, 0, f"Estimate:   x:{state.position[0]:+2.3f} y:{state.position[1]:+2.3f}, a:{state.heading:+1.3f}")
+
+            state.drive_angle = 0
+            state.drive_speed = 0
+            if key == 'KEY_UP':
+                state.drive_speed = cruise_speed
+            elif key == 'KEY_DOWN':
+                state.drive_speed = -cruise_speed
+            elif key == 'KEY_LEFT':
+                state.drive_angle = np.pi / 2
+            elif key == 'KEY_RIGHT':
+                state.drive_angle = -np.pi / 2
+            yield
+            time.sleep(1./25)
+    finally:
+        curses.nocbreak()
+        curses.echo()
+        curses.endwin()
+    
+ 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--sim", help="Use simulated robot", action="store_true")
     parser.add_argument("--waypoints", help="waypoints CSV filename")
+    parser.add_argument("--square")
     parser.add_argument("--datalog", help="output datalog csv filename")
     args = parser.parse_args()
 
@@ -127,8 +198,14 @@ if __name__ == "__main__":
         import hardware
         robot = hardware.Robot()
 
-    waypoints = load_waypoint_file(args.waypoints)
-    behavior = drive_to_waypoints(robot.state, waypoints)
+    if args.waypoints:
+        waypoints = load_waypoint_file(args.waypoints)
+        behavior = drive_to_waypoints(robot.state, waypoints)
+    elif args.square:
+        behavior = square_test(robot.state)
+    else:
+        behavior = monitor(robot.state)
+
     logger = Logger(args.datalog)
     run_loop(robot, behavior, logger)
  
