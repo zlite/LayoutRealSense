@@ -1,6 +1,6 @@
 serial==3.4
 numpy==1.16.4
 crcmod==1.7
-pyrealsense2==2.24.0.965
+pyrealsense2==2.25.0.994
 transformations==2019.4.22
 pandas==0.25.0

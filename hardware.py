@@ -18,6 +18,11 @@ class RealSense:
     def start(self):
         cfg = pyrealsense2.config()
         cfg.enable_stream(pyrealsense2.stream.pose)
+        profile = cfg.resolve(self.pipe)
+        dev = profile.get_device()
+        sensor = dev.first_pose_sensor()
+        sensor.set_option(pyrealsense2.option.enable_pose_jumping, False)
+        sensor.set_option(pyrealsense2.option.enable_relocalization, False)
         self.pipe.start(cfg)
 
     def stop(self):
