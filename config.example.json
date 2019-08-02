@@ -1,0 +1,13 @@
+{
+    "motors": {
+        "ticks_per_m": {
+            "l": 10000,
+            "r": 11000
+        },
+        "track_width": 0.20,
+        "mapping": "lr"
+    },
+    "marvelmind": {
+        "addr": 6
+    }
+}

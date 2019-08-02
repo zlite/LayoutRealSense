@@ -68,7 +68,7 @@ class Marvelmind:
         self.hedge.stop()
 
 class Motors:
-    def __init__(self):
+    def __init__(self, config):
         roboclaw_vid = 0x03EB   # VID of Roboclaw motor driver in hex
         for port in comports():
             if port.vid == roboclaw_vid:
@@ -81,9 +81,13 @@ class Motors:
         self.address = 0x80
         version = self.rc.ReadVersion(self.address)
 
-        self.l_ticks_per_m = 10_000 #  number of left encoder ticks per m traveled
-        self.r_ticks_per_m = 11_000 #  number of right encoder ticks per m traveled
-        self.track_width = 0.20 # width between the two tracks, in m
+        self.l_ticks_per_m = config['ticks_per_m']['l'] #  number of left encoder ticks per m traveled
+        self.r_ticks_per_m = config['ticks_per_m']['r'] #  number of right encoder ticks per m traveled
+        self.track_width = config['track_width'] # width between the two tracks, in m
+
+        self.mapping = config['mapping']
+        if self.mapping not in ('rl', 'lr'):
+            raise ValueError("Invalid motor mapping '{self.mapping}'")
 
         self.last_setpoint = None
 
@@ -107,7 +111,11 @@ class Motors:
 
         if self.last_setpoint != (left_speed, right_speed):
             self.last_setpoint = (left_speed, right_speed)
-            self.rc.SpeedM1M2(self.address, left_speed, right_speed)
+            if self.mapping == "rl":
+                self.rc.SpeedM1M2(self.address, right_speed, left_speed)
+            else:
+                self.rc.SpeedM1M2(self.address, left_speed, right_speed)
+                
 
     def stop(self):
         self.last_setpoint = None
@@ -115,15 +123,15 @@ class Motors:
         self.rc.ForwardM2(self.address, 0)
 
 class Robot:
-    def __init__(self, marvelmind_addr=6):
+    def __init__(self, config):
         self.state = State(
             time = 0.0,
             drive_speed = 0.0,
             drive_angle = 0.0,
         )
-        self.marvelmind = Marvelmind(marvelmind_addr)
+        self.marvelmind = Marvelmind(config['marvelmind']['addr'])
         self.realsense = RealSense()
-        self.motors = Motors()
+        self.motors = Motors(config['motors'])
 
     def start(self):
         self.realsense.start()

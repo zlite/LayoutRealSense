@@ -201,16 +201,19 @@ if __name__ == "__main__":
     parser.add_argument("--sim", help="Use simulated robot", action="store_true")
     parser.add_argument("--waypoints", help="waypoints CSV filename")
     parser.add_argument("--waypoints-repeat", help="waypoints CSV filename")
-    parser.add_argument("--square")
+    parser.add_argument("--square", action='store_true')
     parser.add_argument("--datalog", help="output datalog csv filename")
+    parser.add_argument("--config", help="configuration file", default='config.json')
     args = parser.parse_args()
+
+    config = json.load(open(args.config))
 
     if args.sim:
         import sim
         robot = sim.SimRobot()
     else:
         import hardware
-        robot = hardware.Robot()
+        robot = hardware.Robot(config)
 
     if args.waypoints or args.waypoints_repeat:
         waypoints = load_waypoint_file(args.waypoints or args.waypoints_repeat)
