@@ -16,6 +16,8 @@ def rotation_matrix(theta):
     s = np.sin(theta)
     return np.array([[c, -s], [s, c]])
 
+def unit(v): return v / np.linalg.norm(v)
+
 class NumpyEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, np.ndarray):

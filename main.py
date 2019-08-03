@@ -6,12 +6,13 @@ import numpy as np
 from numpy.linalg import norm
 from transformations import affine_matrix_from_points
 
-from util import normalize_angle, NumpyEncoder
+from util import normalize_angle, unit, rotation_matrix, NumpyEncoder
 
 Waypoint = namedtuple('Waypoint', ['position'])
 
-hit_radius = 0.05
+hit_radius = 0.10
 cruise_speed = 0.2
+pen_offset = -0.30
 
 def load_waypoint_file(waypoint_file):
     with open(waypoint_file) as csv_file:
@@ -85,8 +86,16 @@ def run_loop(robot, behavior, logger):
         robot.stop()
 
 def drive_to_waypoint(state, waypoint):
-    while norm(waypoint.position - state.position) > hit_radius:
-        delta = waypoint.position - state.position
+    direction = unit(waypoint.position - state.position)
+
+    while True:
+        delta = waypoint.position - state.position - direction * pen_offset
+
+        # dot product goes negative when position crosses the plane of the waypoint
+        # such that the angle to the waypoint is opposite the original angle
+        if delta @ direction < 0:
+            break
+
         bearing = np.arctan2(delta[1], delta[0])
         delta_heading = normalize_angle(bearing - state.heading)
 
@@ -98,8 +107,21 @@ def drive_to_waypoint(state, waypoint):
         else:
             state.drive_speed = 0
 
-        state.drive_angle = np.arctan(delta_heading) * 2
+        if np.linalg.norm(delta) > hit_radius:
+            state.drive_angle = np.arctan(delta_heading) * 2
+        else:
+            # if too close to the waypoint, the steering angle is too abrupt
+            state.drive_angle = 0
+
         yield
+
+def draw_point(state, waypoint):
+    delta_global = waypoint.position - state.position
+    state.arm_pos = point_body = rotation_matrix(-state.heading) @ delta_global
+    print(f"Waypoint in body frame: {point_body}")
+    yield from pause(state, 1.0)
+    state.arm_pos = None
+    yield from pause(state, 1.0)
 
 def pause(state, t):
     start_time = state.time
@@ -122,6 +144,7 @@ def drive_to_waypoints(state, waypoints, repeat):
             yield from drive_to_waypoint(state, waypoint)
             print(f"Pausing at waypoint {i + 1}: {waypoint.position}")
             yield from pause(state, 2.0)
+            yield from draw_point(state, waypoint)
         if not repeat:
             break
 
@@ -187,6 +210,10 @@ def monitor(state):
                 state.drive_angle = np.pi / 2
             elif key == 'KEY_RIGHT':
                 state.drive_angle = -np.pi / 2
+            elif key == 'd':
+                state.arm_pos = np.array([-0.30, 0])
+            elif key == 'u':
+                state.arm_pos = None
             yield
             time.sleep(1./25)
     finally:

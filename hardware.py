@@ -122,16 +122,59 @@ class Motors:
         self.rc.ForwardM1(self.address, 0)
         self.rc.ForwardM2(self.address, 0)
 
+class UArm:
+    def __init__(self, config):
+        from uarm.wrapper import SwiftAPI
+        from uarm.utils.log import logger
+
+        logger.setLevel(logger.WARNING)
+        self.swift = SwiftAPI(filters={'hwid': 'USB VID:PID=2341:0042'}, callback_thread_pool_size=1)
+        self.swift.waiting_ready()
+        device_info = self.swift.get_device_info()
+        print(device_info)
+
+        self.offset = np.array(config['offset'])
+        self.x_bound = np.array(config['x_bound'])
+        self.y_bound = np.array(config['y_bound'])
+        self.stowed = config['stowed']
+        self.z_floor = config['z_floor']
+
+        self.last_pos = None
+
+    def update(self, arm_pos):
+        if arm_pos is not None:
+            pos = list((arm_pos - self.offset) * -1000) + [self.z_floor]
+        else:
+            pos = self.stowed
+
+        if pos != self.last_pos:
+            
+            x_ok = (pos[0] > self.x_bound[0] and pos[0] < self.x_bound[1])
+            y_ok = (pos[1] > self.y_bound[0] and pos[1] < self.y_bound[1])
+
+            if pos == self.stowed or (x_ok and y_ok):
+                print(f"Arm position {pos}")
+                self.swift.set_position(x=pos[0], y=pos[1], z=pos[2])
+            else:
+                print(f"Arm position {pos} out of bounds")
+            
+            self.last_pos = pos
+
 class Robot:
     def __init__(self, config):
         self.state = State(
             time = 0.0,
             drive_speed = 0.0,
             drive_angle = 0.0,
+            arm_pos = None
         )
         self.marvelmind = Marvelmind(config['marvelmind']['addr'])
         self.realsense = RealSense()
         self.motors = Motors(config['motors'])
+        if 'uarm' in config:
+            self.arm = UArm(config['uarm'])
+        else:
+            self.arm = None
 
     def start(self):
         self.realsense.start()
@@ -144,6 +187,8 @@ class Robot:
 
     def update(self):
         self.motors.drive(self.state.drive_speed, self.state.drive_angle)
+        if self.arm:
+            self.arm.update(self.state.arm_pos)
 
         elapsed_time = (time.time() - self.start_time) - self.state.time
         loop_time = 1./20

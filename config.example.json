@@ -9,5 +9,12 @@
     },
     "marvelmind": {
         "addr": 6
+    },
+    "uarm": {
+        "x_bound": [175, 300],
+        "y_bound": [-200, 200],
+        "z_floor": -90,
+        "stowed": [145, 0, 30],
+        "offset": [-0.08, 0]
     }
 }
