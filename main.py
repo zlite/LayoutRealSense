@@ -102,16 +102,17 @@ def drive_to_waypoint(state, waypoint):
         state.target_delta_heading = delta_heading
         state.target_bearing = bearing
 
-        if np.abs(delta_heading) < np.pi/4:
-            state.drive_speed = cruise_speed
-        else:
-            state.drive_speed = 0
-
-        if np.linalg.norm(delta) > hit_radius:
-            state.drive_angle = np.arctan(delta_heading) * 2
-        else:
+        if np.linalg.norm(delta) < hit_radius:
             # if too close to the waypoint, the steering angle is too abrupt
             state.drive_angle = 0
+            state.drive_speed = cruise_speed
+        else:
+            if np.abs(delta_heading) < np.pi/4:
+                state.drive_speed = cruise_speed
+            else:
+                state.drive_speed = 0
+
+            state.drive_angle = np.arctan(delta_heading) * 2
 
         yield
 
