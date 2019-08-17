@@ -199,7 +199,14 @@ def monitor(state):
                 + f"mapper:{state.rs_mapper_confidence:+1.3f} "
             )
             if state.position is not None:
-                scr.addstr(2, 0, f"Estimate:   x:{state.position[0]:+2.3f} y:{state.position[1]:+2.3f}, a:{state.heading:+1.3f}")
+                scr.addstr(2, 0, f"Estimate:  "
+                + f"x:{state.position[0]:+2.3f} "
+                + f"y:{state.position[1]:+2.3f} "
+                + f"a:{state.heading:+1.3f} "
+                + f"s:{state.rs_to_mm_scale:+1.3f} "
+                + f"tx:{state.rs_to_mm_offset[0]:+1.3f} "
+                + f"ty:{state.rs_to_mm_offset[1]:+1.3f} "
+            )
 
             state.drive_angle = 0
             state.drive_speed = 0
