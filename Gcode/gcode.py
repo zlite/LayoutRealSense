@@ -2,7 +2,6 @@
 
 from pygcode import GCodeRapidMove, GCodeLinearMove
 from pygcode import Machine, Line, split_gcodes
-import numpy as np
 m = Machine()
 coordinates = []
 pairs = []
