@@ -6,7 +6,6 @@ import numpy as np
 m = Machine()
 coordinates = []
 pairs = []
-i = 0
 with open('triangle.gcode', 'r') as fh:
         for line_text in fh.readlines():
                 line = Line(line_text)
@@ -17,6 +16,5 @@ with open('triangle.gcode', 'r') as fh:
                         if g.X is not None:
                             pairs = [[g.X],[g.Y]]
                             coordinates.append(pairs)
-                            i = i+1
 print("Number of points:", len(coordinates))
 print(coordinates)
