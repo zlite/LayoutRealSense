@@ -134,6 +134,7 @@ def pause(state, t):
 def drive_to_waypoints(state, waypoints, repeat):
     # Drive forward until estimator produces a position
     print("Starting calibration drive")
+    state.func = 'calib'
     while state.position is None:
         state.drive_speed = cruise_speed
         state.drive_angle = 0
@@ -142,9 +143,12 @@ def drive_to_waypoints(state, waypoints, repeat):
     while True:
         for i, waypoint in enumerate(waypoints):
             print(f"Going to waypoint {i + 1}: {waypoint.position}")
+            state.func = 'drive'
             yield from drive_to_waypoint(state, waypoint)
             print(f"Pausing at waypoint {i + 1}: {waypoint.position}")
+            state.func = 'pause'
             yield from pause(state, 2.0)
+            state.func = 'draw'
             yield from draw_point(state, waypoint)
         if not repeat:
             break
