@@ -1,0 +1,20 @@
+{
+    "motors": {
+        "ticks_per_m": {
+            "l": 10000,
+            "r": 11000
+        },
+        "track_width": 0.20,
+        "mapping": "lr"
+    },
+    "marvelmind": {
+        "addr": 6
+    },
+    "uarm": {
+        "x_bound": [175, 300],
+        "y_bound": [-200, 200],
+        "z_floor": -90,
+        "stowed": [145, 0, 30],
+        "offset": [-0.08, 0]
+    }
+}
