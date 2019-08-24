@@ -2,6 +2,7 @@ import time
 import numpy as np
 import pyrealsense2
 import transformations
+from serial import Serial
 from serial.tools.list_ports import comports
 
 from roboclaw import Roboclaw
@@ -124,22 +125,23 @@ class Motors:
 
 class UArm:
     def __init__(self, config):
-        from uarm.wrapper import SwiftAPI
-        from uarm.utils.log import logger
+        for port in comports():
+            if port.vid == 0x2341 and port.pid == 0x0042:
+                self.serial = Serial(port.device, 115200, timeout = 0)
+                break
+        else:
+            raise IOError("UArm not found")
 
-        logger.setLevel(logger.WARNING)
-        self.swift = SwiftAPI(filters={'hwid': 'USB VID:PID=2341:0042'}, callback_thread_pool_size=1)
-        self.swift.waiting_ready()
-        device_info = self.swift.get_device_info()
-        print(device_info)
-
+        time.sleep(2)
         self.offset = np.array(config['offset'])
         self.x_bound = np.array(config['x_bound'])
         self.y_bound = np.array(config['y_bound'])
         self.stowed = config['stowed']
         self.z_floor = config['z_floor']
+        self.read_data = bytes()
 
         self.last_pos = None
+        self.active = False
 
     def update(self, arm_pos):
         if arm_pos is not None:
@@ -148,17 +150,27 @@ class UArm:
             pos = self.stowed
 
         if pos != self.last_pos:
-            
             x_ok = (pos[0] > self.x_bound[0] and pos[0] < self.x_bound[1])
             y_ok = (pos[1] > self.y_bound[0] and pos[1] < self.y_bound[1])
 
             if pos == self.stowed or (x_ok and y_ok):
-                print(f"Arm position {pos}")
-                self.swift.set_position(x=pos[0], y=pos[1], z=pos[2])
+                #print(f"Arm position {pos}")
+                self.active = True
+                gcode = f"G01 X{pos[0]} Y{pos[1]} Z{pos[2]} F20.00\n"
+                print(gcode)
+                self.serial.flushInput()
+                self.serial.write(bytes(gcode, 'ascii'))
             else:
                 print(f"Arm position {pos} out of bounds")
             
             self.last_pos = pos
+        elif self.active:
+            self.read_data += self.serial.read()
+            if b'ok\n' in self.read_data:
+                self.read_data = bytes()
+                self.active = False
+
+        return self.active
 
 class Robot:
     def __init__(self, config):
@@ -188,7 +200,7 @@ class Robot:
     def update(self):
         self.motors.drive(self.state.drive_speed, self.state.drive_angle)
         if self.arm:
-            self.arm.update(self.state.arm_pos)
+            self.state.arm_moving = self.arm.update(self.state.arm_pos)
 
         elapsed_time = (time.time() - self.start_time) - self.state.time
         loop_time = 1./20
