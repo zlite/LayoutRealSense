@@ -116,13 +116,13 @@ def drive_to_waypoint(state, waypoint):
 
         yield
 
-def draw_point(state, waypoint):
+def draw_points(state, waypoint, pts):
     delta_global = waypoint.position - state.position
-    state.arm_pos = point_body = rotation_matrix(-state.heading) @ delta_global
+    point_body = rotation_matrix(-state.heading) @ delta_global
     print(f"Waypoint in body frame: {point_body}")
-    yield from pause(state, 1.0)
-    state.arm_pos = None
-    yield from pause(state, 1.0)
+    for x, y in pts:
+        yield from move_arm(state, point_body + [x/1000.0, y/1000.0])
+    yield from move_arm(state, None)
 
 def pause(state, t):
     start_time = state.time
@@ -131,7 +131,13 @@ def pause(state, t):
         state.drive_angle = 0
         yield
 
-def drive_to_waypoints(state, waypoints, repeat):
+def move_arm(state, pos):
+    state.arm_pos = pos
+    yield
+    while state.arm_moving:
+        yield
+
+def drive_to_waypoints(state, waypoints, repeat, draw):
     # Drive forward until estimator produces a position
     print("Starting calibration drive")
     state.func = 'calib'
@@ -149,7 +155,7 @@ def drive_to_waypoints(state, waypoints, repeat):
             state.func = 'pause'
             yield from pause(state, 2.0)
             state.func = 'draw'
-            yield from draw_point(state, waypoint)
+            yield from draw_points(state, waypoint, draw or [[0, 0]] )
         if not repeat:
             break
 
@@ -243,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument("--square", action='store_true')
     parser.add_argument("--datalog", help="output datalog csv filename")
     parser.add_argument("--config", help="configuration file", default='config.json')
+    parser.add_argument("--draw", help="points file to draw")
     args = parser.parse_args()
 
     config = json.load(open(args.config))
@@ -256,7 +263,11 @@ if __name__ == "__main__":
 
     if args.waypoints or args.waypoints_repeat:
         waypoints = load_waypoint_file(args.waypoints or args.waypoints_repeat)
-        behavior = drive_to_waypoints(robot.state, waypoints, bool(args.waypoints_repeat))
+        if args.draw:
+            points = json.load(open(args.draw))
+        else:
+            points = None
+        behavior = drive_to_waypoints(robot.state, waypoints, bool(args.waypoints_repeat), points)
     elif args.square:
         behavior = square_test(robot.state)
     else:
